@@ -70,3 +70,7 @@ This dataset is meant for analyses such as:
 
 - The exact teacher-selection workflow is only partially documented in the public release, but the column structure clearly reflects a gold-set teacher-evaluation stage.
 - Compared with the final VEX metric dataset, this file keeps more raw generation and audit metadata and fewer finalized benchmark prediction columns.
+
+## Provenance Note
+
+This dataset is tied to the gold-data workflow documented in [../../../annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1), where the frozen gold subset is explicitly used for teacher selection and gold-dev evaluation before scaling to silver-label generation.

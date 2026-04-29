@@ -55,3 +55,7 @@ Use this dataset when the goal is to study how gold labels were produced or corr
 
 - Column names follow an earlier dataset stage and still use fields such as `name`, `bloom`, and `topic`.
 - This dataset is not the main VEX metric input. For benchmark evaluation, use [../vex_metric_dataset/README.md](C:/Git/Bachelor/VEX/dataset/additional/vex_metric_dataset/README.md:1).
+
+## Provenance Note
+
+This dataset is most closely connected to the gold-label and audit workflow documented in [../../../annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1). In particular, it preserves the kind of annotation and audit columns that are later removed from cleaner modeling and benchmark releases.

@@ -82,3 +82,7 @@ in the benchmark-oriented pipeline layout documented in [../../../vex_metric/REA
 
 - This dataset uses the later stable naming convention such as `student_name`, `bloom_level`, and `question_topic`.
 - Unlike the audit and teacher-selection datasets, it is intentionally trimmed to the fields most relevant for evaluation rather than annotation tracing.
+
+## Provenance Note
+
+This dataset is the evaluation-facing derivative of the main VEX data lineage. It is meant to be used together with the VEX metric pipeline documented in [../../../vex_metric/README.md](C:/Git/Bachelor/VEX/vex_metric/README.md:1), not as the annotation or teacher-selection working dataset.

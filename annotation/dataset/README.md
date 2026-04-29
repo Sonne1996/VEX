@@ -699,3 +699,15 @@ Human gold is used for trustworthy evaluation.
 Silver labels are used for scalable training.
 The two must remain clearly separated.
 ```
+
+## Initial Gold Subset Sampling
+
+We created the initial gold-annotation subset by sampling approximately 10% of the question pool from the exported `answers.csv` table using a fixed random seed (`210`).
+
+Before sampling, we excluded questions with fewer than 10 available answers so that each selected question contributed a meaningful answer set to the annotation workflow.
+
+Sampling was performed at the `question_id` level rather than at the individual-answer level. After the question subset was chosen, all answers belonging to the selected questions were retained and written to `additional_sampled_answers.csv`.
+
+Because the sampling unit was the question, not the answer, the resulting proportion of sampled answers is only approximately 10% of the eligible answer pool and can vary slightly depending on the number of answers attached to each sampled question.
+
+This sampled subset served as the starting point for the dual-annotation, consensus, and audit workflow documented above.

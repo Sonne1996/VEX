@@ -50,3 +50,7 @@ Because the data is long-format, the same answer may appear multiple times with 
 
 - The presence of `model_feedback` distinguishes this dataset from the benchmark-oriented VEX metric dataset.
 - From the project context, this dataset is best interpreted as a paper-specific artifact for feedback studies rather than the main benchmark input.
+
+## Provenance Note
+
+The feedback-analysis sampling workflow is documented separately in [../../../annotation/feedback/README.md](C:/Git/Bachelor/VEX/annotation/feedback/README.md:1). That workflow explains how question-balanced subsets were selected for qualitative feedback analysis across models.
