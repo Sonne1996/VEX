@@ -1,34 +1,57 @@
-# VEX Metric Dataset
+# Audit Dataset
 
-This folder contains the dataset used by the VEX evaluation pipeline.
+This folder contains the audit-oriented VEX dataset.
 
 ## File
 
-`merged_model_predictions.parquet`
+`audit_dataset.parquet`
 
-This is the main evaluation file. It contains student answers, human reference grades, and model predictions. The VEX pipeline uses it to compute both item-level ASAG metrics and virtual-exam-level metrics.
+This dataset preserves the human annotation and audit columns that are largely removed from the cleaner benchmark-facing releases. It is intended for analyses such as:
 
-## Columns
+- inter-annotator disagreement,
+- manual audit decisions,
+- gold-label resolution studies,
+- LLM-detection audit inspection.
 
-| Column | Description |
-|---|---|
-| `question_id` | Unique ID of the question. Used to sample virtual exams. |
-| `member_id` | Anonymous student/member ID. Used to aggregate answers per student. |
-| `answer_id` | Unique ID of the student answer. |
-| `question` | The question text shown to the student. |
-| `answer` | The student's answer text. |
-| `bloom_level` | Bloom taxonomy level of the question, if available. |
-| `question_topic` | Topic/category of the question. |
-| `grade` | Human reference grade on the normalized scale `0.0, 0.25, 0.5, 0.75, 1.0`. |
-| `new_grade_*` | Predictions from LLM-based grading models. |
-| `grade_bert_*` | Predictions from BERT-based grading models. |
-| `grade_mdeberta_*` | Predictions from mDeBERTa-based grading models. |
-| `grade_prior_*` | Prior/template baseline predictions. |
-| `pred_tfidf_*` | TF-IDF baseline predictions. |
+In project terms, this dataset is closest to the annotation workflow described in [annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1).
 
-## Usage
+## Structure
 
-The VEX pipeline expects this file at:
+The file contains the standard answer-level identifiers and content fields:
 
-```text
-dataset/vex_metric_dataset/merged_model_predictions.parquet
+- `member_id`
+- `subject_id`
+- `answer_id`
+- `question_id`
+- `grading_id`
+- `name`
+- `question`
+- `bloom`
+- `topic`
+- `answer`
+- `grade`
+- `label_type`
+- `gold_is_llm`
+- `split`
+
+and, importantly, the preserved audit columns:
+
+- `rating`
+- `human_grade 1`
+- `is_llm 1`
+- `grader_name 1`
+- `human_grade 2`
+- `is_llm 2`
+- `grader_name 2`
+- `gold_label_after_human_audit`
+- `consensus_status_audit`
+- `human_audit_comment`
+
+## Intended Use
+
+Use this dataset when the goal is to study how gold labels were produced or corrected, rather than to train or benchmark a final grading model. Compared with later stable releases, this file keeps the annotation trail visible.
+
+## Notes
+
+- Column names follow an earlier dataset stage and still use fields such as `name`, `bloom`, and `topic`.
+- This dataset is not the main VEX metric input. For benchmark evaluation, use [../vex_metric_dataset/README.md](C:/Git/Bachelor/VEX/dataset/additional/vex_metric_dataset/README.md:1).

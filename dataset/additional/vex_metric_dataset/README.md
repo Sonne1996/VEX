@@ -6,29 +6,79 @@ This folder contains the dataset used by the VEX evaluation pipeline.
 
 `merged_model_predictions.parquet`
 
-This is the main evaluation file. It contains student answers, human reference grades, and model predictions. The VEX pipeline uses it to compute both item-level ASAG metrics and virtual-exam-level metrics.
+This is the benchmark-facing merged prediction file. It contains the human reference grade together with the prediction columns needed for the VEX item-level and exam-level evaluation pipeline.
 
-## Columns
+The VEX pipeline uses this dataset to compute:
 
-| Column | Description |
-|---|---|
-| `question_id` | Unique ID of the question. Used to sample virtual exams. |
-| `member_id` | Anonymous student/member ID. Used to aggregate answers per student. |
-| `answer_id` | Unique ID of the student answer. |
-| `question` | The question text shown to the student. |
-| `answer` | The student's answer text. |
-| `bloom_level` | Bloom taxonomy level of the question, if available. |
-| `question_topic` | Topic/category of the question. |
-| `grade` | Human reference grade on the normalized scale `0.0, 0.25, 0.5, 0.75, 1.0`. |
-| `new_grade_*` | Predictions from LLM-based grading models. |
-| `grade_bert_*` | Predictions from BERT-based grading models. |
-| `grade_mdeberta_*` | Predictions from mDeBERTa-based grading models. |
-| `grade_prior_*` | Prior/template baseline predictions. |
-| `pred_tfidf_*` | TF-IDF baseline predictions. |
+- standard item-level ASAG metrics,
+- virtual-exam-level metrics after aggregation over sampled exams,
+- cross-model comparisons under the VEX evaluation protocol.
+
+## Structure
+
+The file contains the core answer-level context:
+
+- `grading_id`
+- `member_id`
+- `subject_id`
+- `answer_id`
+- `question_id`
+- `student_name`
+- `question`
+- `bloom_level`
+- `question_topic`
+- `answer`
+- `grade`
+- `label_type`
+- `gold_is_llm`
+- `split`
+
+and the released prediction columns:
+
+### Joint LLM grading models
+
+- `new_grade_deepseek/deepseek-v3.2-thinking`
+- `new_grade_deepseek/deepseek-v3.2`
+- `new_grade_google/gemini-2.5-pro`
+- `new_grade_anthropic/claude-sonnet-4.6`
+- `new_grade_openai/gpt-5.4`
+- `new_grade_llama32_3b_base`
+- `new_grade_gemma_e4_base`
+- `new_grade_llama32_3b_ft`
+- `new_grade_gemma_e4_ft`
+
+### Transformer models
+
+- `grade_bert_base`
+- `grade_bert_ft`
+- `grade_mdeberta_base`
+- `grade_mdeberta_ft`
+
+### Prior/template baselines
+
+- `grade_prior_global`
+- `grade_prior_template_overlap`
+
+### TF-IDF baselines
+
+- `pred_tfidf_v5_answer_char_3_5`
+- `pred_tfidf_v1_answer_word_unigram`
+- `pred_tfidf_v4_question_and_answer_separate`
+- `pred_tfidf_v2_answer_word_uni_bigram`
+- `pred_tfidf_v3_qa_concat_word_uni_bigram`
+- `pred_tfidf_v6_mixed_word_char_qa`
 
 ## Usage
 
-The VEX pipeline expects this file at:
+The VEX metric code expects this dataset at:
 
 ```text
 dataset/vex_metric_dataset/merged_model_predictions.parquet
+```
+
+in the benchmark-oriented pipeline layout documented in [../../../vex_metric/README.md](C:/Git/Bachelor/VEX/vex_metric/README.md:1).
+
+## Notes
+
+- This dataset uses the later stable naming convention such as `student_name`, `bloom_level`, and `question_topic`.
+- Unlike the audit and teacher-selection datasets, it is intentionally trimmed to the fields most relevant for evaluation rather than annotation tracing.
