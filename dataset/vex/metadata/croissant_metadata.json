@@ -1,0 +1,23 @@
+{
+  "name": "ASAG2026",
+  "version": "1.0",
+  "description": "ASAG2026 is a dataset for Automatic Short Answer Grading containing approximately 31,500 student answers with LLM-based grading and feedback.",
+  "task_type": "regression",
+  "data_format": "parquet",
+  "num_samples": 31500,
+  "license": "CC-BY-4.0",
+  "fields": [
+    {"name": "question_id", "type": "string"},
+    {"name": "question_text", "type": "string"},
+    {"name": "student_answer", "type": "string"},
+    {"name": "reference_answer", "type": "string"},
+    {"name": "review_model", "type": "string"},
+    {"name": "score", "type": "float"},
+    {"name": "feedback_text", "type": "string"},
+    {"name": "generation_model", "type": "string"},
+    {"name": "permutation_id", "type": "integer"},
+    {"name": "week", "type": "integer"}
+  ]
+}
+
+TODO: Muss noch ans korrekte angepasst werden
