@@ -160,8 +160,7 @@ Most scripts expect a local parquet release file and use in-file path constants 
 From the repository root:
 
 ```bash
-cd vex_metric
-python run_vex.py
+python vex_metric/run_vex.py
 ```
 
 The evaluation pipeline creates a reproducible virtual test environment and writes metric reports under `vex_metric/vex_test_env/`.

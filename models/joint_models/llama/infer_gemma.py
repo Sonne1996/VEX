@@ -17,9 +17,12 @@ from unsloth import FastLanguageModel
 # CONFIG
 # =========================================================
 
-INPUT_PARQUET = Path("../dataset/v1_0_release/v1_0_stable.parquet")
-OUTPUT_PARQUET = Path("gemma_results_ft.parquet")
-LOG_FILE = Path("infer_gemma_e4_test_only_ft.log")
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parents[2]
+
+INPUT_PARQUET = PROJECT_ROOT / "dataset" / "vex" / "v1_0_release" / "v1_0_stable.parquet"
+OUTPUT_PARQUET = BASE_DIR / "gemma_results_ft.parquet"
+LOG_FILE = BASE_DIR / "infer_gemma_e4_test_only_ft.log"
 
 QUESTION_COL = "question"
 ANSWER_COL = "answer"
@@ -35,8 +38,8 @@ ROW_LIMIT = None  # z.B. 20 zum Testen
 # -----------------------------------------
 USE_FINETUNED_MODEL = True
 
-BASE_MODEL_PATH = Path("model_weights/gemma-4-E4B-it")
-FINETUNED_MODEL_PATH = Path("outputs_silver_grade_only_gemma_e4/checkpoint-6866")
+BASE_MODEL_PATH = BASE_DIR / "model_weights" / "gemma-4-E4B-it"
+FINETUNED_MODEL_PATH = BASE_DIR / "outputs_silver_grade_only_gemma_e4" / "checkpoint-6866"
 
 MAX_SEQ_LENGTH = 8192
 LOAD_IN_4BIT = True

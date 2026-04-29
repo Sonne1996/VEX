@@ -11,8 +11,11 @@ import pandas as pd
 # CONFIG
 # =========================================================
 
-INPUT_PARQUET = Path("../dataset/v1_0_release/v1_0_stable.parquet")
-OUTPUT_PARQUET = Path("result_global_prior.parquet")
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parents[2]
+
+INPUT_PARQUET = PROJECT_ROOT / "dataset" / "vex" / "v1_0_release" / "v1_0_stable.parquet"
+OUTPUT_PARQUET = BASE_DIR / "result_global_prior.parquet"
 
 GRADE_COL = "grade"
 SPLIT_COL = "split"

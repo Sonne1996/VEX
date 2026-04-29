@@ -27,8 +27,9 @@ from transformers import (
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parents[2]
 
-INPUT_PARQUET = "../dataset/v1_0_release/v1_0_stable.parquet"
+INPUT_PARQUET = PROJECT_ROOT / "dataset" / "vex" / "v1_0_release" / "v1_0_stable.parquet"
 
 # Choose one:
 # MODEL_KEY = "mdeberta"

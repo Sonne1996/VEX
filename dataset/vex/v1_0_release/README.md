@@ -33,7 +33,7 @@ The intended release artifact for this folder is:
 v1_0_stable.parquet
 ```
 
-This file is the canonical dataset file expected by the model scripts in [../../../models/README.md](C:/Git/Bachelor/VEX/models/README.md:1).
+This file is the canonical dataset file expected by the model scripts in [../../../models/README.md](../../../models/README.md#L1).
 
 The release dataset preserves the stable answer-level structure used across the repository, including:
 
@@ -46,7 +46,7 @@ Compared with `v0.3_stable`, the `v1.0` release no longer retains the `gold_is_l
 
 ## Split Helper
 
-This folder also includes [split_release.py](C:/Git/Bachelor/VEX/dataset/vex/v1_0_release/split_release.py:1).
+This folder also includes [split_release.py](split_release.py#L1).
 
 That helper script reads:
 
@@ -65,7 +65,7 @@ The split is derived directly from the existing `split` column and is intended a
 
 From the released repository contents, `v1.0` should be understood primarily as a **freezing and packaging stage** rather than a major schema change.
 
-The current [v1_0.py](C:/Git/Bachelor/VEX/dataset/vex/v1_0_release/v1_0.py:1) file appears to be a carry-over script from the earlier `v0.3` stage and does not yet fully reflect the final public naming in this directory. In particular, it still reads from a `v0.3` path and writes `v0.3_stable` again.
+The current [v1_0.py](v1_0.py#L1) file appears to be a carry-over script from the earlier `v0.3` stage and does not yet fully reflect the final public naming in this directory. In particular, it still reads from a `v0.3` path and writes `v0.3_stable` again.
 
 For that reason, the most reliable interpretation of this folder is:
 
@@ -76,7 +76,7 @@ For that reason, the most reliable interpretation of this folder is:
 
 ## Relation to Other Folders
 
-- Dataset overview: [../README.md](C:/Git/Bachelor/VEX/dataset/vex/README.md:1)
-- Dataset changelog: [../metadata/CHANGE_LOG.md](C:/Git/Bachelor/VEX/dataset/vex/metadata/CHANGE_LOG.md:1)
-- Silver-label integration stage: [../v0_3_silver_labels/generation_silver_labels/README.md](C:/Git/Bachelor/VEX/dataset/vex/v0_3_silver_labels/generation_silver_labels/README.md:1)
-- Model consumers of this release: [../../../models/README.md](C:/Git/Bachelor/VEX/models/README.md:1)
+- Dataset overview: [../README.md](../README.md#L1)
+- Dataset changelog: [../metadata/CHANGE_LOG.md](../metadata/CHANGE_LOG.md#L1)
+- Silver-label integration stage: [../v0_3_silver_labels/generation_silver_labels/README.md](../v0_3_silver_labels/generation_silver_labels/README.md#L1)
+- Model consumers of this release: [../../../models/README.md](../../../models/README.md#L1)

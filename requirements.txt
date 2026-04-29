@@ -1,0 +1,13 @@
+pandas
+numpy
+pyarrow
+scikit-learn
+scipy
+tqdm
+matplotlib
+huggingface_hub
+datasets
+torch
+transformers
+trl
+unsloth

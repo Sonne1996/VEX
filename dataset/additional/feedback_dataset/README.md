@@ -53,4 +53,4 @@ Because the data is long-format, the same answer may appear multiple times with 
 
 ## Provenance Note
 
-The feedback-analysis sampling workflow is documented separately in [../../../annotation/feedback/README.md](C:/Git/Bachelor/VEX/annotation/feedback/README.md:1). That workflow explains how question-balanced subsets were selected for qualitative feedback analysis across models.
+The feedback-analysis sampling workflow is documented separately in [../../../annotation/feedback/README.md](../../../annotation/feedback/README.md#L1). That workflow explains how question-balanced subsets were selected for qualitative feedback analysis across models.

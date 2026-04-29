@@ -16,7 +16,7 @@ The silver labels in `v0.3` were produced in three stages:
 
 Before generating silver labels, we selected the teacher model using the gold-based teacher-selection dataset documented in:
 
-- [../../../additional/teacher_selection_dataset/README.md](C:/Git/Bachelor/VEX/dataset/additional/teacher_selection_dataset/README.md:1)
+- [../../../additional/teacher_selection_dataset/README.md](../../../additional/teacher_selection_dataset/README.md#L1)
 
 In the released workflow, the selected teacher was:
 
@@ -104,7 +104,7 @@ These columns preserve:
 
 ## 4. Merge into the Main Dataset Lineage
 
-The generated silver labels are incorporated into the main dataset through [../v0_3.py](C:/Git/Bachelor/VEX/dataset/vex/v0_3_silver_labels/v0_3.py:1).
+The generated silver labels are incorporated into the main dataset through [../v0_3.py](../v0_3.py#L1).
 
 That script performs the following versioned steps:
 
@@ -187,6 +187,6 @@ The public release therefore documents:
 
 ## Relation to Other Folders
 
-- Gold annotation and audit workflow: [../../../../annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1)
-- Teacher selection dataset: [../../../additional/teacher_selection_dataset/README.md](C:/Git/Bachelor/VEX/dataset/additional/teacher_selection_dataset/README.md:1)
-- Main VEX dataset lineage: [../../README.md](C:/Git/Bachelor/VEX/dataset/vex/README.md:1)
+- Gold annotation and audit workflow: [../../../../annotation/dataset/README.md](../../../../annotation/dataset/README.md#L1)
+- Teacher selection dataset: [../../../additional/teacher_selection_dataset/README.md](../../../additional/teacher_selection_dataset/README.md#L1)
+- Main VEX dataset lineage: [../../README.md](../../README.md#L1)

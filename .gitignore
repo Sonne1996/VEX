@@ -206,6 +206,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Local credentials
+models/hf_key/hf_api_key.txt
+
 # PyPI configuration file
 .pypirc
 

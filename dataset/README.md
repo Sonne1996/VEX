@@ -29,7 +29,7 @@ dataset/
 
 ## Main Dataset Line
 
-The main VEX dataset workflow lives in [vex/](C:/Git/Bachelor/VEX/dataset/vex). It contains:
+The main VEX dataset workflow lives in [vex/](vex/). It contains:
 
 - the raw-to-release version lineage,
 - the metadata files for release,
@@ -37,7 +37,7 @@ The main VEX dataset workflow lives in [vex/](C:/Git/Bachelor/VEX/dataset/vex). 
 
 The key stable transitions are documented in:
 
-- [vex/metadata/CHANGE_LOG.md](C:/Git/Bachelor/VEX/dataset/vex/metadata/CHANGE_LOG.md:1)
+- [vex/metadata/CHANGE_LOG.md](vex/metadata/CHANGE_LOG.md#L1)
 
 In short:
 
@@ -48,7 +48,7 @@ In short:
 
 ## Additional Derived Datasets
 
-The [additional/](C:/Git/Bachelor/VEX/dataset/additional) folder contains derived datasets for specific experimental purposes:
+The [additional/](additional/) folder contains derived datasets for specific experimental purposes:
 
 - `audit_dataset`: preserves annotation and audit columns for gold-label analysis,
 - `feedback_dataset`: long-format dataset for model feedback studies,
@@ -61,8 +61,8 @@ These datasets share the same underlying VEX data lineage but keep different fie
 
 The dataset release is closely tied to the human annotation workflows documented in:
 
-- [../annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1)
-- [../annotation/feedback/README.md](C:/Git/Bachelor/VEX/annotation/feedback/README.md:1)
+- [../annotation/dataset/README.md](../annotation/dataset/README.md#L1)
+- [../annotation/feedback/README.md](../annotation/feedback/README.md#L1)
 
 Those folders document how the gold subset, audit process, and feedback-analysis samples were constructed.
 
@@ -70,8 +70,8 @@ Those folders document how the gold subset, audit process, and feedback-analysis
 
 The release metadata for the main VEX dataset is stored in:
 
-- [vex/metadata/DATA_LICENSE.md](C:/Git/Bachelor/VEX/dataset/vex/metadata/DATA_LICENSE.md:1)
-- [vex/metadata/croissant_metadata.json](C:/Git/Bachelor/VEX/dataset/vex/metadata/croissant_metadata.json:1)
+- [vex/metadata/DATA_LICENSE.md](vex/metadata/DATA_LICENSE.md#L1)
+- [vex/metadata/croissant_metadata.json](vex/metadata/croissant_metadata.json#L1)
 
 The current dataset license is **CC BY 4.0**.
 

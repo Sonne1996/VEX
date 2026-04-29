@@ -13,19 +13,20 @@ from huggingface_hub import snapshot_download
 # CONFIG
 # =========================================================
 
-# Trage hier deinen HF Token ein oder setze die Env-Variable HF_TOKEN.
-HF_TOKEN_FILE = Path("../hf_key/hf_api_key.txt")
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parents[2]
 
-if not HF_TOKEN_FILE.exists():
-    raise FileNotFoundError(f"HF token file not found: {HF_TOKEN_FILE.resolve()}")
+# Set HF_TOKEN, or keep a local untracked token file at models/hf_key/hf_api_key.txt.
+HF_TOKEN_FILE = PROJECT_ROOT / "models" / "hf_key" / "hf_api_key.txt"
 
-HF_TOKEN = HF_TOKEN_FILE.read_text(encoding="utf-8").strip()
+HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
+if not HF_TOKEN and HF_TOKEN_FILE.exists():
+    HF_TOKEN = HF_TOKEN_FILE.read_text(encoding="utf-8").strip()
 
 # Das ist das offizielle Modell, das zu deinem Pfad
 # model_weights/gemma-4-E4B-it passt.
 MODEL_ID = "google/gemma-4-E4B-it"
 
-BASE_DIR = Path(__file__).resolve().parent
 SAVE_DIR = (BASE_DIR / "model_weights" / "gemma-4-E4B-it").resolve()
 
 # Optional:

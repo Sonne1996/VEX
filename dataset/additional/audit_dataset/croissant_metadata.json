@@ -1,0 +1,443 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "http://schema.org/",
+    "sc": "http://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "dct": "http://purl.org/dc/terms/"
+  },
+  "@type": "sc:Dataset",
+  "@id": "https://github.com/Sonne1996/VEX/tree/main/dataset/additional/audit_dataset",
+  "name": "VEX Audit Dataset",
+  "version": "1.0.0",
+  "dct:conformsTo": "http://mlcommons.org/croissant/1.1",
+  "description": "Derived VEX dataset for annotation and audit analysis. It preserves the answer-level records together with the human annotation, consensus, and manual-audit columns that are removed from cleaner benchmark-facing releases.",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "sdLicense": "https://creativecommons.org/licenses/by/4.0/",
+  "url": "https://github.com/Sonne1996/VEX/tree/main/dataset/additional/audit_dataset",
+  "isAccessibleForFree": true,
+  "inLanguage": [
+    {
+      "@type": "sc:Language",
+      "name": "German",
+      "alternateName": "de"
+    },
+    {
+      "@type": "sc:Language",
+      "name": "English",
+      "alternateName": "en"
+    }
+  ],
+  "keywords": [
+    "automatic short answer grading",
+    "ASAG",
+    "annotation audit",
+    "gold labels",
+    "educational assessment",
+    "VEX",
+    "predominantly German",
+    "mixed-language responses"
+  ],
+  "additionalProperty": [
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Language distribution",
+      "value": "Predominantly German. A small minority of responses may contain English or mixed German-English text."
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Primary release artifact",
+      "value": "audit_dataset/audit_dataset.parquet"
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Record granularity",
+      "value": "One record per answer-level grading instance with preserved annotation and audit metadata."
+    }
+  ],
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "audit_dataset_parquet",
+      "name": "audit_dataset.parquet",
+      "description": "Derived VEX audit dataset artifact.",
+      "contentUrl": "https://raw.githubusercontent.com/Sonne1996/VEX/main/dataset/additional/audit_dataset/audit_dataset.parquet",
+      "encodingFormat": "application/vnd.apache.parquet"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "audit_records",
+      "name": "Audit Records",
+      "description": "One record per student answer in the VEX audit dataset. Each record combines anonymized identifiers, question and answer text, the normalized reference grade, split and provenance fields, and the preserved annotation, consensus, and manual-audit columns required for audit-focused analysis.",
+      "key": [
+        {
+          "@id": "audit_records/grading_id"
+        }
+      ],
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/member_id",
+          "name": "member_id",
+          "description": "Anonymous student identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "member_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/subject_id",
+          "name": "subject_id",
+          "description": "Anonymous subject or course-context identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "subject_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/answer_id",
+          "name": "answer_id",
+          "description": "Unique answer identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "answer_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/question_id",
+          "name": "question_id",
+          "description": "Unique question identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "question_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/grading_id",
+          "name": "grading_id",
+          "description": "Unique grading instance identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "grading_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/name",
+          "name": "name",
+          "description": "Student name field retained from the earlier dataset stage.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "name"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/question",
+          "name": "question",
+          "description": "Plain-text question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "question"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/bloom",
+          "name": "bloom",
+          "description": "Bloom taxonomy level in the earlier naming convention.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "bloom"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/topic",
+          "name": "topic",
+          "description": "Question topic in the earlier naming convention.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "topic"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/answer",
+          "name": "answer",
+          "description": "Plain-text student answer.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "answer"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/grade",
+          "name": "grade",
+          "description": "Normalized reference grade on the VEX five-point scale.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "grade"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/label_type",
+          "name": "label_type",
+          "description": "Label provenance such as gold or silver.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "label_type"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/gold_is_llm",
+          "name": "gold_is_llm",
+          "description": "Flag from the gold workflow indicating likely LLM-generated content.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "gold_is_llm"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/split",
+          "name": "split",
+          "description": "Dataset split label.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "split"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/rating",
+          "name": "rating",
+          "description": "Preserved rating or annotation status field from the audit workflow.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "rating"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/human_grade_1",
+          "name": "human_grade 1",
+          "description": "First human annotator grade before consensus or audit.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "human_grade 1"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/is_llm_1",
+          "name": "is_llm 1",
+          "description": "First annotator LLM-origin judgment.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "is_llm 1"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/grader_name_1",
+          "name": "grader_name 1",
+          "description": "Identifier of the first annotator.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "grader_name 1"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/human_grade_2",
+          "name": "human_grade 2",
+          "description": "Second human annotator grade before consensus or audit.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "human_grade 2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/is_llm_2",
+          "name": "is_llm 2",
+          "description": "Second annotator LLM-origin judgment.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "is_llm 2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/grader_name_2",
+          "name": "grader_name 2",
+          "description": "Identifier of the second annotator.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "grader_name 2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/gold_label_after_human_audit",
+          "name": "gold_label_after_human_audit",
+          "description": "Final gold label after the manual audit stage.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "gold_label_after_human_audit"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/consensus_status_audit",
+          "name": "consensus_status_audit",
+          "description": "Consensus or audit outcome status.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "consensus_status_audit"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "audit_records/human_audit_comment",
+          "name": "human_audit_comment",
+          "description": "Free-text comment from the manual audit process.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "audit_dataset_parquet"
+            },
+            "extract": {
+              "column": "human_audit_comment"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

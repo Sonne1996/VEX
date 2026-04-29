@@ -1,0 +1,346 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "http://schema.org/",
+    "sc": "http://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "dct": "http://purl.org/dc/terms/"
+  },
+  "@type": "sc:Dataset",
+  "@id": "https://github.com/Sonne1996/VEX/tree/main/dataset/additional/feedback_dataset",
+  "name": "VEX Feedback Dataset",
+  "version": "1.0.0",
+  "dct:conformsTo": "http://mlcommons.org/croissant/1.1",
+  "description": "Derived VEX dataset for feedback studies. It stores one row per answer-model pair, preserving the base answer context together with generated grades and written feedback.",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "sdLicense": "https://creativecommons.org/licenses/by/4.0/",
+  "url": "https://github.com/Sonne1996/VEX/tree/main/dataset/additional/feedback_dataset",
+  "isAccessibleForFree": true,
+  "inLanguage": [
+    {
+      "@type": "sc:Language",
+      "name": "German",
+      "alternateName": "de"
+    },
+    {
+      "@type": "sc:Language",
+      "name": "English",
+      "alternateName": "en"
+    }
+  ],
+  "keywords": [
+    "automatic short answer grading",
+    "ASAG",
+    "feedback generation",
+    "educational assessment",
+    "LLM feedback",
+    "VEX",
+    "predominantly German",
+    "mixed-language responses"
+  ],
+  "additionalProperty": [
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Language distribution",
+      "value": "Predominantly German. A small minority of responses may contain English or mixed German-English text."
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Primary release artifact",
+      "value": "feedback_dataset/merged_feedback_long.parquet"
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Record granularity",
+      "value": "One record per answer-model pair in long format."
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Label scale",
+      "value": "Five-point normalized ordinal grading scale: 0.0, 0.25, 0.5, 0.75, 1.0."
+    }
+  ],
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "feedback_dataset_parquet",
+      "name": "merged_feedback_long.parquet",
+      "description": "Derived VEX feedback dataset artifact in long format.",
+      "contentUrl": "https://raw.githubusercontent.com/Sonne1996/VEX/main/dataset/additional/feedback_dataset/merged_feedback_long.parquet",
+      "encodingFormat": "application/vnd.apache.parquet"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "feedback_records",
+      "name": "Feedback Records",
+      "description": "One record per student answer and model pair in the VEX feedback dataset. Each record combines anonymized identifiers, question and answer text, the human reference grade, split and provenance fields, and the model-specific generated grade and written feedback.",
+      "key": [
+        {
+          "@id": "feedback_records/grading_id"
+        },
+        {
+          "@id": "feedback_records/model_name"
+        }
+      ],
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/member_id",
+          "name": "member_id",
+          "description": "Anonymous student identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "member_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/subject_id",
+          "name": "subject_id",
+          "description": "Anonymous subject or course-context identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "subject_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/answer_id",
+          "name": "answer_id",
+          "description": "Unique answer identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "answer_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/question_id",
+          "name": "question_id",
+          "description": "Unique question identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "question_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/grading_id",
+          "name": "grading_id",
+          "description": "Identifier of the underlying grading instance.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "grading_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/student_name",
+          "name": "student_name",
+          "description": "Student name field retained in the dataset schema.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "student_name"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/question",
+          "name": "question",
+          "description": "Plain-text question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "question"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/bloom_level",
+          "name": "bloom_level",
+          "description": "Bloom taxonomy level associated with the question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "bloom_level"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/question_topic",
+          "name": "question_topic",
+          "description": "Question topic or category.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "question_topic"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/answer",
+          "name": "answer",
+          "description": "Plain-text student answer.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "answer"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/grade",
+          "name": "grade",
+          "description": "Reference grade on the VEX five-point scale.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "grade"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/label_type",
+          "name": "label_type",
+          "description": "Label provenance such as gold or silver.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "label_type"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/gold_is_llm",
+          "name": "gold_is_llm",
+          "description": "Flag from the gold workflow indicating likely LLM-generated content.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "gold_is_llm"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/split",
+          "name": "split",
+          "description": "Dataset split label.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "split"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/model_name",
+          "name": "model_name",
+          "description": "Name of the feedback-generating model.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "model_name"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/model_grade",
+          "name": "model_grade",
+          "description": "Grade predicted by the model for the answer.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "model_grade"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "feedback_records/model_feedback",
+          "name": "model_feedback",
+          "description": "Written feedback produced by the model.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "feedback_dataset_parquet"
+            },
+            "extract": {
+              "column": "model_feedback"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

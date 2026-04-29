@@ -13,10 +13,12 @@ from scipy.stats import binomtest
 from sklearn.metrics import cohen_kappa_score
 
 SCRIPT_PATH = Path(__file__).resolve()
-PROJECT_ROOT = SCRIPT_PATH.parents[2]
+PROJECT_ROOT = SCRIPT_PATH.parents[1]
 VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
 
 sys.path.insert(0, str(VEX_METRIC_DIR))
+
+import vex_config as cfg
 
 
 # =========================================================
@@ -28,7 +30,7 @@ TEST_SIZE = 10
 N_PERMUTATIONS = 10_000
 RANDOM_SEED = 4242
 
-OUTPUT_DIR = "statistical_significance_q10"
+OUTPUT_DIR = SCRIPT_PATH.parent / "statistical_significance_q10"
 
 # Compare best model against all others.
 # Ranking metric for choosing the best model.

@@ -5,6 +5,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
+
 # =========================================================
 # INPUT
 # =========================================================
@@ -16,7 +19,13 @@ from pathlib import Path
 # - one human score column
 # - one or more model prediction columns
 # - effectively: Test(Q | (S, A, ŷ, y))
-INPUT_PARQUET = "../dataset/vex_metric_dataset/merged_model_predictions.parquet"
+INPUT_PARQUET = (
+    PROJECT_ROOT
+    / "dataset"
+    / "additional"
+    / "vex_metric_dataset"
+    / "merged_model_predictions.parquet"
+)
 
 # =========================================================
 # TEST ENVIRONMENT STORAGE
@@ -66,7 +75,7 @@ INPUT_PARQUET = "../dataset/vex_metric_dataset/merged_model_predictions.parquet"
 #           ...
 #   4_dataframe
 #
-TEST_ENV_FOLDER = "vex_test_env"
+TEST_ENV_FOLDER = BASE_DIR / "vex_test_env"
 
 # Top-level subfolders inside the test environment
 TEST_ENV_METADATA_FOLDER = "1_test_env_metadata"

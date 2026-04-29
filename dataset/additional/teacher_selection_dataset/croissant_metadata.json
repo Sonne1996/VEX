@@ -1,0 +1,583 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "http://schema.org/",
+    "sc": "http://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "dct": "http://purl.org/dc/terms/"
+  },
+  "@type": "sc:Dataset",
+  "@id": "https://github.com/Sonne1996/VEX/tree/main/dataset/additional/teacher_selection_dataset",
+  "name": "VEX Teacher Selection Dataset",
+  "version": "1.0.0",
+  "dct:conformsTo": "http://mlcommons.org/croissant/1.1",
+  "description": "Derived VEX dataset for teacher-model selection on the gold subset. It combines answer-level gold context, audit metadata, candidate teacher outputs, and evaluator-model grades used to compare teacher candidates before silver-label generation.",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "sdLicense": "https://creativecommons.org/licenses/by/4.0/",
+  "url": "https://github.com/Sonne1996/VEX/tree/main/dataset/additional/teacher_selection_dataset",
+  "isAccessibleForFree": true,
+  "inLanguage": [
+    {
+      "@type": "sc:Language",
+      "name": "German",
+      "alternateName": "de"
+    },
+    {
+      "@type": "sc:Language",
+      "name": "English",
+      "alternateName": "en"
+    }
+  ],
+  "keywords": [
+    "automatic short answer grading",
+    "ASAG",
+    "teacher model selection",
+    "silver labels",
+    "gold evaluation",
+    "VEX",
+    "predominantly German",
+    "mixed-language responses"
+  ],
+  "additionalProperty": [
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Language distribution",
+      "value": "Predominantly German. A small minority of responses may contain English or mixed German-English text."
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Primary release artifact",
+      "value": "teacher_selection_dataset/gold_with_all_models.parquet"
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Record granularity",
+      "value": "One record per gold answer-level grading instance with teacher-candidate outputs and evaluator-model scores."
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Label scale",
+      "value": "Five-point normalized ordinal grading scale: 0.0, 0.25, 0.5, 0.75, 1.0."
+    }
+  ],
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "teacher_selection_dataset_parquet",
+      "name": "gold_with_all_models.parquet",
+      "description": "Derived VEX teacher-selection dataset artifact.",
+      "contentUrl": "https://raw.githubusercontent.com/Sonne1996/VEX/main/dataset/additional/teacher_selection_dataset/gold_with_all_models.parquet",
+      "encodingFormat": "application/vnd.apache.parquet"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "teacher_selection_records",
+      "name": "Teacher Selection Records",
+      "description": "One record per student answer in the VEX teacher-selection dataset. Each record combines anonymized identifiers, question and answer text, the normalized gold reference grade, split and provenance fields, preserved audit metadata, candidate teacher outputs, and evaluator-model grades used for teacher selection.",
+      "key": [
+        {
+          "@id": "teacher_selection_records/grading_id"
+        }
+      ],
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/member_id",
+          "name": "member_id",
+          "description": "Anonymous student identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "member_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/subject_id",
+          "name": "subject_id",
+          "description": "Anonymous subject or course-context identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "subject_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/answer_id",
+          "name": "answer_id",
+          "description": "Unique answer identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "answer_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/question_id",
+          "name": "question_id",
+          "description": "Unique question identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "question_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/grading_id",
+          "name": "grading_id",
+          "description": "Unique grading instance identifier.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "grading_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/name",
+          "name": "name",
+          "description": "Student name field retained from the earlier dataset stage.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "name"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/question",
+          "name": "question",
+          "description": "Plain-text question.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "question"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/bloom",
+          "name": "bloom",
+          "description": "Bloom taxonomy level in the earlier naming convention.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "bloom"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/topic",
+          "name": "topic",
+          "description": "Question topic in the earlier naming convention.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "topic"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/answer",
+          "name": "answer",
+          "description": "Plain-text student answer.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "answer"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/grade",
+          "name": "grade",
+          "description": "Reference grade on the VEX five-point scale.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "grade"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/label_type",
+          "name": "label_type",
+          "description": "Label provenance field.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "label_type"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/gold_is_llm",
+          "name": "gold_is_llm",
+          "description": "Flag from the gold workflow indicating likely LLM-generated content.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "gold_is_llm"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/split",
+          "name": "split",
+          "description": "Dataset split label.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "split"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/rating",
+          "name": "rating",
+          "description": "Preserved rating or annotation status field from the audit workflow.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "rating"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/human_grade_1",
+          "name": "human_grade 1",
+          "description": "First human annotator grade.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "human_grade 1"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/is_llm_1",
+          "name": "is_llm 1",
+          "description": "First annotator LLM-origin judgment.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "is_llm 1"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/grader_name_1",
+          "name": "grader_name 1",
+          "description": "Identifier of the first annotator.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "grader_name 1"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/human_grade_2",
+          "name": "human_grade 2",
+          "description": "Second human annotator grade.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "human_grade 2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/is_llm_2",
+          "name": "is_llm 2",
+          "description": "Second annotator LLM-origin judgment.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "is_llm 2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/grader_name_2",
+          "name": "grader_name 2",
+          "description": "Identifier of the second annotator.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "grader_name 2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/gold_label_after_human_audit",
+          "name": "gold_label_after_human_audit",
+          "description": "Final gold label after manual audit.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "gold_label_after_human_audit"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/consensus_status_audit",
+          "name": "consensus_status_audit",
+          "description": "Consensus or audit outcome status.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "consensus_status_audit"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/human_audit_comment",
+          "name": "human_audit_comment",
+          "description": "Free-text comment from the manual audit process.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "human_audit_comment"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/model_response_with_metadata",
+          "name": "model_response_with_metadata",
+          "description": "Teacher-candidate generation output with attached metadata.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "model_response_with_metadata"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/new_grade_google_gemini_2_5_pro",
+          "name": "new_grade_google/gemini-2.5-pro",
+          "description": "Grade predicted by the candidate Gemini teacher model.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "new_grade_google/gemini-2.5-pro"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/raw_output_google_gemini_2_5_pro",
+          "name": "raw_output_google/gemini-2.5-pro",
+          "description": "Raw output generated by the candidate Gemini teacher model.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "raw_output_google/gemini-2.5-pro"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/metadata_google_gemini_2_5_pro",
+          "name": "metadata_google/gemini-2.5-pro",
+          "description": "Request metadata for the candidate Gemini teacher output.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "metadata_google/gemini-2.5-pro"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/eval_grade_deepseek_deepseek_v3_2_thinking",
+          "name": "eval_grade_deepseek_deepseek_v3_2_thinking",
+          "description": "Evaluator-model grade assigned by DeepSeek V3.2 Thinking.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "eval_grade_deepseek_deepseek_v3_2_thinking"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/eval_grade_deepseek_deepseek_v3_2",
+          "name": "eval_grade_deepseek_deepseek_v3_2",
+          "description": "Evaluator-model grade assigned by DeepSeek V3.2.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "eval_grade_deepseek_deepseek_v3_2"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/eval_grade_google_gemini_2_5_pro",
+          "name": "eval_grade_google_gemini_2_5_pro",
+          "description": "Evaluator-model grade assigned by Gemini 2.5 Pro.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "eval_grade_google_gemini_2_5_pro"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/eval_grade_anthropic_claude_sonnet_4_6",
+          "name": "eval_grade_anthropic_claude_sonnet_4_6",
+          "description": "Evaluator-model grade assigned by Claude Sonnet 4.6.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "eval_grade_anthropic_claude_sonnet_4_6"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "teacher_selection_records/eval_grade_openai_gpt_5_4",
+          "name": "eval_grade_openai_gpt_5_4",
+          "description": "Evaluator-model grade assigned by GPT-5.4.",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "teacher_selection_dataset_parquet"
+            },
+            "extract": {
+              "column": "eval_grade_openai_gpt_5_4"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

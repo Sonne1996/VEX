@@ -60,4 +60,4 @@ These datasets are derived from the same underlying VEX data lineage, but they k
 - the teacher-selection dataset keeps teacher-candidate and evaluator outputs,
 - the VEX metric dataset keeps final model prediction columns for benchmark evaluation.
 
-For the benchmark-ready dataset lineage itself, see [../vex/metadata/CHANGE_LOG.md](C:/Git/Bachelor/VEX/dataset/vex/metadata/CHANGE_LOG.md:1).
+For the benchmark-ready dataset lineage itself, see [../vex/metadata/CHANGE_LOG.md](../vex/metadata/CHANGE_LOG.md#L1).

@@ -20,8 +20,9 @@ from transformers import TrainerCallback
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parents[2]
 
-INPUT_PARQUET = "../dataset/v1_0_release/v1_0_stable.parquet"
+INPUT_PARQUET = PROJECT_ROOT / "dataset" / "vex" / "v1_0_release" / "v1_0_stable.parquet"
 OUTPUT_DIR = (BASE_DIR / "outputs_silver_grade_only_gemma_e4").resolve()
 LOG_FILE = OUTPUT_DIR / "training.log"
 

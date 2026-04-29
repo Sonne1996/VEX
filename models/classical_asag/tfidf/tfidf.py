@@ -19,8 +19,11 @@ from sklearn.linear_model import Ridge
 # CONFIG
 # =========================================================
 
-INPUT_PARQUET = Path("../dataset/v1_0_release/v1_0_stable.parquet")
-OUTPUT_PARQUET = Path("tfidf_results.parquet")
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parents[2]
+
+INPUT_PARQUET = PROJECT_ROOT / "dataset" / "vex" / "v1_0_release" / "v1_0_stable.parquet"
+OUTPUT_PARQUET = BASE_DIR / "tfidf_results.parquet"
 
 ID_COL = "grading_id"
 QUESTION_COL = "question"

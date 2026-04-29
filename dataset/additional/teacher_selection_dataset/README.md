@@ -73,4 +73,4 @@ This dataset is meant for analyses such as:
 
 ## Provenance Note
 
-This dataset is tied to the gold-data workflow documented in [../../../annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1), where the frozen gold subset is explicitly used for teacher selection and gold-dev evaluation before scaling to silver-label generation.
+This dataset is tied to the gold-data workflow documented in [../../../annotation/dataset/README.md](../../../annotation/dataset/README.md#L1), where the frozen gold subset is explicitly used for teacher selection and gold-dev evaluation before scaling to silver-label generation.

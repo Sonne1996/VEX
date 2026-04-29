@@ -34,7 +34,7 @@ models/
 Across model families, the scripts expect a released parquet dataset derived from the VEX data pipeline, typically configured as:
 
 ```text
-../dataset/v1_0_release/v1_0_stable.parquet
+dataset/vex/v1_0_release/v1_0_stable.parquet
 ```
 
 The exact path is specified near the top of each script and should be verified before execution.
@@ -62,7 +62,7 @@ In the released experiments, training is generally performed on the `silver` por
 
 ### 1. Classical ASAG Baselines
 
-Location: [classical_asag/tfidf/tfidf.py](C:/Git/Bachelor/VEX/models/classical_asag/tfidf/tfidf.py:1)
+Location: [classical_asag/tfidf/tfidf.py](classical_asag/tfidf/tfidf.py#L1)
 
 This script implements several sparse text baselines using `TfidfVectorizer` features and a `Ridge` regressor. It trains on the silver-labeled training portion and writes predictions for the test portion back into a parquet file.
 
@@ -83,8 +83,8 @@ Predictions are rounded to the nearest valid grade on the five-point scale and s
 
 Location:
 
-- [prior_template/global_prior/global_prior.py](C:/Git/Bachelor/VEX/models/prior_template/global_prior/global_prior.py:1)
-- [prior_template/qa_overlap_template/QA_overlap_template.py](C:/Git/Bachelor/VEX/models/prior_template/qa_overlap_template/QA_overlap_template.py:1)
+- [prior_template/global_prior/global_prior.py](prior_template/global_prior/global_prior.py#L1)
+- [prior_template/qa_overlap_template/QA_overlap_template.py](prior_template/qa_overlap_template/QA_overlap_template.py#L1)
 
 These scripts provide simple interpretable baselines.
 
@@ -112,8 +112,8 @@ These baselines are intentionally simple and serve as low-cost reference points 
 
 Location:
 
-- [transformers/bert/](C:/Git/Bachelor/VEX/models/transformers/bert)
-- [transformers/deberta/](C:/Git/Bachelor/VEX/models/transformers/deberta)
+- [transformers/bert/](transformers/bert/)
+- [transformers/deberta/](transformers/deberta/)
 
 The Transformer pipelines treat grading as scalar regression over the five-point normalized scale. Both families build a single encoder input of the form:
 
@@ -123,18 +123,18 @@ QUESTION: <question> [SEP] STUDENT_ANSWER: <answer>
 
 Training scripts:
 
-- [transformers/bert/train_bert.py](C:/Git/Bachelor/VEX/models/transformers/bert/train_bert.py:1)
-- [transformers/deberta/train_deberta.py](C:/Git/Bachelor/VEX/models/transformers/deberta/train_deberta.py:1)
+- [transformers/bert/train_bert.py](transformers/bert/train_bert.py#L1)
+- [transformers/deberta/train_deberta.py](transformers/deberta/train_deberta.py#L1)
 
 Download helpers:
 
-- [transformers/bert/prepare_bert.py](C:/Git/Bachelor/VEX/models/transformers/bert/prepare_bert.py:1)
-- [transformers/deberta/prepare_deberta.py](C:/Git/Bachelor/VEX/models/transformers/deberta/prepare_deberta.py:1)
+- [transformers/bert/prepare_bert.py](transformers/bert/prepare_bert.py#L1)
+- [transformers/deberta/prepare_deberta.py](transformers/deberta/prepare_deberta.py#L1)
 
 Inference scripts:
 
-- [transformers/bert/infer_bert.py](C:/Git/Bachelor/VEX/models/transformers/bert/infer_bert.py:1)
-- [transformers/deberta/infer_deberta.py](C:/Git/Bachelor/VEX/models/transformers/deberta/infer_deberta.py:1)
+- [transformers/bert/infer_bert.py](transformers/bert/infer_bert.py#L1)
+- [transformers/deberta/infer_deberta.py](transformers/deberta/infer_deberta.py#L1)
 
 Released encoder configurations:
 
@@ -180,16 +180,16 @@ Users reproducing the reported model family behavior should therefore verify the
 
 Location:
 
-- [joint_models/gemma/](C:/Git/Bachelor/VEX/models/joint_models/gemma)
-- [joint_models/llama/](C:/Git/Bachelor/VEX/models/joint_models/llama)
+- [joint_models/gemma/](joint_models/gemma/)
+- [joint_models/llama/](joint_models/llama/)
 
 These scripts frame grading as instruction-following generation. The training setup uses supervised fine-tuning over chat-formatted examples, where the model is asked to grade a question-answer pair and return JSON.
 
 Gemma training and preparation:
 
-- [joint_models/gemma/prepare_gemma.py](C:/Git/Bachelor/VEX/models/joint_models/gemma/prepare_gemma.py:1)
-- [joint_models/gemma/train_gemma.py](C:/Git/Bachelor/VEX/models/joint_models/gemma/train_gemma.py:1)
-- [joint_models/gemma/infer_gemma.py](C:/Git/Bachelor/VEX/models/joint_models/gemma/infer_gemma.py:1)
+- [joint_models/gemma/prepare_gemma.py](joint_models/gemma/prepare_gemma.py#L1)
+- [joint_models/gemma/train_gemma.py](joint_models/gemma/train_gemma.py#L1)
+- [joint_models/gemma/infer_gemma.py](joint_models/gemma/infer_gemma.py#L1)
 
 The released Gemma configuration uses:
 
@@ -227,8 +227,8 @@ The `llama/` directory is included to preserve the released experimental workspa
 
 The `hf_key/` folder is a local helper location for gated Hugging Face downloads used by the joint LLM scripts. The release contains:
 
-- [hf_key/hf_api_key.txt](C:/Git/Bachelor/VEX/models/hf_key/hf_api_key.txt:1)
-- [hf_key/README.md](C:/Git/Bachelor/VEX/models/hf_key/README.md:1)
+- [hf_key/hf_api_key.example.txt](hf_key/hf_api_key.example.txt)
+- [hf_key/README.md](hf_key/README.md#L1)
 
 For public or shared deployments, users should keep access tokens local and avoid committing real credentials to version control.
 
@@ -240,7 +240,7 @@ This directory is best understood as a reproducibility release rather than a pac
 2. Confirm that the expected parquet release file exists locally.
 3. Verify GPU availability for the larger Transformer and Gemma experiments.
 4. Inspect model output column names before merging predictions into downstream evaluation tables.
-5. Treat `models/requirements.txt` as a placeholder; dependency versions are not fully pinned in the current release.
+5. Treat the repository-level `requirements.txt` as a practical starting point; dependency versions are not fully pinned in the current release.
 
 From the imports used across scripts, the core Python stack includes:
 
@@ -259,7 +259,7 @@ From the imports used across scripts, the core Python stack includes:
 
 ## Relation to the VEX Evaluation Pipeline
 
-The VEX metric pipeline in [vex_metric/](C:/Git/Bachelor/VEX/vex_metric) expects prediction columns with stable names. The most directly aligned model outputs in this directory are:
+The VEX metric pipeline in [vex_metric/](../vex_metric/) expects prediction columns with stable names. The most directly aligned model outputs in this directory are:
 
 - `pred_tfidf_v1_answer_word_unigram`
 - `pred_tfidf_v4_question_and_answer_separate`

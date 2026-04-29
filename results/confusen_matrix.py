@@ -11,12 +11,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-from pathlib import Path
 import sys
 
 BASE_DIR = Path(__file__).resolve()
 
-PROJECT_ROOT = BASE_DIR.parents[2]
+PROJECT_ROOT = BASE_DIR.parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from vex_metric.vex_config import (
@@ -47,7 +46,7 @@ STUDENT_ID_COL = "member_id"
 ANSWER_ID_COL = "answer_id"
 HUMAN_GRADE_COL = "human_grade"
 
-OUTPUT_DIR = Path("confusion_matrices_gpt")
+OUTPUT_DIR = BASE_DIR.parent / "confusion_matrices_gpt"
 
 WRITE_ROW_NORMALIZED = True
 

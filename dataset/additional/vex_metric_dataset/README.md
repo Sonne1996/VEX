@@ -73,10 +73,10 @@ and the released prediction columns:
 The VEX metric code expects this dataset at:
 
 ```text
-dataset/vex_metric_dataset/merged_model_predictions.parquet
+dataset/additional/vex_metric_dataset/merged_model_predictions.parquet
 ```
 
-in the benchmark-oriented pipeline layout documented in [../../../vex_metric/README.md](C:/Git/Bachelor/VEX/vex_metric/README.md:1).
+in the benchmark-oriented pipeline layout documented in [../../../vex_metric/README.md](../../../vex_metric/README.md#L1).
 
 ## Notes
 
@@ -85,4 +85,4 @@ in the benchmark-oriented pipeline layout documented in [../../../vex_metric/REA
 
 ## Provenance Note
 
-This dataset is the evaluation-facing derivative of the main VEX data lineage. It is meant to be used together with the VEX metric pipeline documented in [../../../vex_metric/README.md](C:/Git/Bachelor/VEX/vex_metric/README.md:1), not as the annotation or teacher-selection working dataset.
+This dataset is the evaluation-facing derivative of the main VEX data lineage. It is meant to be used together with the VEX metric pipeline documented in [../../../vex_metric/README.md](../../../vex_metric/README.md#L1), not as the annotation or teacher-selection working dataset.

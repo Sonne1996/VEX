@@ -45,11 +45,11 @@ Public release stage used by the released model scripts as `v1_0_stable.parquet`
 
 ## Metadata
 
-The release metadata is stored in [metadata/](C:/Git/Bachelor/VEX/dataset/vex/metadata):
+The release metadata is stored in [metadata/](metadata/):
 
-- [CHANGE_LOG.md](C:/Git/Bachelor/VEX/dataset/vex/metadata/CHANGE_LOG.md:1)
-- [DATA_LICENSE.md](C:/Git/Bachelor/VEX/dataset/vex/metadata/DATA_LICENSE.md:1)
-- [croissant_metadata.json](C:/Git/Bachelor/VEX/dataset/vex/metadata/croissant_metadata.json:1)
+- [CHANGE_LOG.md](metadata/CHANGE_LOG.md#L1)
+- [DATA_LICENSE.md](metadata/DATA_LICENSE.md#L1)
+- [croissant_metadata.json](metadata/croissant_metadata.json#L1)
 
 These files describe the version transitions, release license, and machine-readable dataset metadata.
 
@@ -61,10 +61,10 @@ The fully raw institutional source database is not public. For that reason:
 - the public release includes the transformation scripts from `v0_2` onward,
 - the later stable versions can be understood and reproduced from the released processing logic and metadata.
 
-This matches the note in [v0_1_sqlite_export/README.md](C:/Git/Bachelor/VEX/dataset/vex/v0_1_sqlite_export/README.md:1).
+This matches the note in [v0_1_sqlite_export/README.md](dataset/vex/v0_1_sqlite_export/README.md).
 
 ## Relation to Other Folders
 
-- The human gold-label workflow is documented in [../../annotation/dataset/README.md](C:/Git/Bachelor/VEX/annotation/dataset/README.md:1).
-- The model scripts consume the later stable release files documented in [../../models/README.md](C:/Git/Bachelor/VEX/models/README.md:1).
-- The VEX evaluation pipeline consumes the merged prediction dataset documented in [../additional/vex_metric_dataset/README.md](C:/Git/Bachelor/VEX/dataset/additional/vex_metric_dataset/README.md:1).
+- The human gold-label workflow is documented in [../../annotation/dataset/README.md](../../annotation/dataset/README.md#L1).
+- The model scripts consume the later stable release files documented in [../../models/README.md](../../models/README.md#L1).
+- The VEX evaluation pipeline consumes the merged prediction dataset documented in [../additional/vex_metric_dataset/README.md](../additional/vex_metric_dataset/README.md#L1).
