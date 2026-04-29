@@ -1,6 +1,6 @@
 {
   "@context": {
-    "@language": "en / de",
+    "@language": "en",
     "@vocab": "http://schema.org/",
     "sc": "http://schema.org/",
     "cr": "http://mlcommons.org/croissant/",
@@ -8,14 +8,26 @@
   },
   "@type": "sc:Dataset",
   "@id": "https://github.com/Sonne1996/VEX/tree/main/dataset/vex",
-  "name": "VEX v0.3 Stable",
-  "version": "0.3.0",
+  "name": "VEX v1.0 Stable",
+  "version": "1.0.0",
   "dct:conformsTo": "http://mlcommons.org/croissant/1.1",
-  "description": "VEX v0.3 Stable is the first stable VEX dataset version aligned with the downstream modeling pipeline. It contains one record per student short-answer response, with anonymized identifiers, cleaned question and answer text, question metadata, a normalized ordinal grade, a train/test split, and label provenance indicating gold versus silver supervision.",
+  "description": "VEX v1.0 Stable is the first release version of the VEX dataset aligned with the downstream benchmark and modeling pipeline. It contains one record per student short-answer response, with anonymized identifiers, cleaned question and answer text, question metadata, a normalized ordinal grade, a train/test split, and label provenance indicating gold versus silver supervision. The dataset is predominantly German; a small minority of responses originate from international students and may contain English or mixed German-English text. This minority is estimated to be approximately 3% or less of the dataset.",
   "license": "https://creativecommons.org/licenses/by/4.0/",
   "sdLicense": "https://creativecommons.org/licenses/by/4.0/",
   "url": "https://github.com/Sonne1996/VEX/tree/main/dataset/vex",
   "isAccessibleForFree": true,
+  "inLanguage": [
+    {
+      "@type": "sc:Language",
+      "name": "German",
+      "alternateName": "de"
+    },
+    {
+      "@type": "sc:Language",
+      "name": "English",
+      "alternateName": "en"
+    }
+  ],
   "keywords": [
     "automatic short answer grading",
     "ASAG",
@@ -23,15 +35,35 @@
     "virtual exams",
     "benchmark dataset",
     "German higher education",
-    "short-answer grading"
+    "short-answer grading",
+    "predominantly German",
+    "mixed-language responses",
+    "German-English educational data"
+  ],
+  "additionalProperty": [
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Language distribution",
+      "value": "Predominantly German. A small minority of responses, estimated at approximately 3% or less, may contain English or mixed German-English text from international students."
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Primary release artifact",
+      "value": "v1_0_release/v1_0_stable.parquet"
+    },
+    {
+      "@type": "sc:PropertyValue",
+      "name": "Label scale",
+      "value": "Five-point normalized ordinal grading scale: 0.0, 0.25, 0.5, 0.75, 1.0."
+    }
   ],
   "distribution": [
     {
       "@type": "cr:FileObject",
-      "@id": "vex_v0_3_stable_parquet",
-      "name": "v0.3_stable.parquet",
-      "description": "Stable VEX dataset artifact for version 0.3.",
-      "contentUrl": "https://raw.githubusercontent.com/Sonne1996/VEX/main/dataset/vex/v0_3_silver_labels/v0.3_stable.parquet",
+      "@id": "vex_v1_0_stable_parquet",
+      "name": "v1_0_stable.parquet",
+      "description": "Stable VEX dataset artifact for version 1.0.",
+      "contentUrl": "https://raw.githubusercontent.com/Sonne1996/VEX/main/dataset/vex/v1_0_release/v1_0_stable.parquet",
       "encodingFormat": "application/vnd.apache.parquet"
     }
   ],
@@ -40,7 +72,7 @@
       "@type": "cr:RecordSet",
       "@id": "vex_answer_records",
       "name": "VEX Answer Records",
-      "description": "One record per student answer in VEX v0.3 Stable. Each record combines anonymized identifiers, cleaned question and answer text, Bloom level and topic metadata, a normalized grade, label provenance, and the intended split for model development.",
+      "description": "One record per student answer in VEX v1.0 Stable. Each record combines anonymized identifiers, cleaned question and answer text, Bloom level and topic metadata, a normalized grade, label provenance, and the intended split for model development and benchmark evaluation.",
       "key": [
         {
           "@id": "vex_answer_records/grading_id"
@@ -55,7 +87,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "grading_id"
@@ -70,7 +102,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "member_id"
@@ -85,7 +117,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "subject_id"
@@ -100,7 +132,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "answer_id"
@@ -115,7 +147,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "question_id"
@@ -130,7 +162,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "student_name"
@@ -145,7 +177,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "question"
@@ -160,7 +192,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "bloom_level"
@@ -175,7 +207,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "question_topic"
@@ -190,7 +222,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "answer"
@@ -205,7 +237,7 @@
           "dataType": "sc:Float",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "grade"
@@ -220,25 +252,10 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "label_type"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "vex_answer_records/gold_is_llm",
-          "name": "gold_is_llm",
-          "description": "Flag derived from the gold workflow indicating whether the answer was labeled as likely LLM-generated.",
-          "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
-            },
-            "extract": {
-              "column": "gold_is_llm"
             }
           }
         },
@@ -250,7 +267,7 @@
           "dataType": "sc:Text",
           "source": {
             "fileObject": {
-              "@id": "vex_v0_3_stable_parquet"
+              "@id": "vex_v1_0_stable_parquet"
             },
             "extract": {
               "column": "split"
