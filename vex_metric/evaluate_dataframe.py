@@ -44,7 +44,7 @@ from vex_config import (
 
 # Set to 1 for fully sequential execution.
 # Set to e.g. 4, 8, 12 depending on your CPU/RAM.
-EVAL_WORKERS = 32
+EVAL_WORKERS = 16
 
 # If True, shows progress bars for item-level and exam-level evaluation.
 SHOW_PROGRESS = True
@@ -507,7 +507,8 @@ def _assign_bologna_labels_from_normalized(
     - Target distribution: A/B/C/D/E = configured percentages.
     - Tie handling: identical point totals always receive the same category.
 
-    The tie category is chosen by the midpoint rank of the tied group.
+    The tie category is chosen by the first rank of the tied group. If a tie
+    crosses a Bologna boundary, the whole group receives the better category.
     This avoids assigning different Bologna grades to students with identical points.
 
     This function is variable for any test_size:
@@ -552,8 +553,7 @@ def _assign_bologna_labels_from_normalized(
         rank_start = current_rank_start
         rank_end = current_rank_start + group_size - 1
 
-        midpoint_rank = int(round((rank_start + rank_end) / 2))
-        label = _label_for_rank_position(midpoint_rank, cutoffs)
+        label = _label_for_rank_position(rank_start, cutoffs)
 
         result.loc[group["idx"].tolist()] = label
 
