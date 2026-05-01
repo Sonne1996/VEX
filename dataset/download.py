@@ -31,7 +31,7 @@ Usage:
     python download.py
 
 Optional:
-    python download.py --repo-id Sokean/VEX
+    python download.py --repo-id VEX19/VEX
     python download.py --output-dir /path/to/dataset
     python download.py --force
 """
@@ -46,7 +46,7 @@ from pathlib import Path
 from huggingface_hub import hf_hub_download
 
 
-DEFAULT_REPO_ID = "Sokean/VEX"
+DEFAULT_REPO_ID = "VEX19/VEX"
 
 
 @dataclass(frozen=True)
