@@ -223,6 +223,10 @@ __marimo__/
 *.parquet
 *.sqlite
 
+# Artifacts vex_metric
+vex_metric/vex_test_env/
+
+
 # Generated result artifacts
 results/confusion_matrices/
 results/figures_plot_2/
