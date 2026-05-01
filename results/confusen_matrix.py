@@ -3,86 +3,134 @@
 
 from __future__ import annotations
 
+import re
+import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
 
-import sys
 
-BASE_DIR = Path(__file__).resolve()
+SCRIPT_PATH = Path(__file__).resolve()
+PROJECT_ROOT = SCRIPT_PATH.parents[1]
+VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
 
-PROJECT_ROOT = BASE_DIR.parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(VEX_METRIC_DIR))
 
-from vex_metric.vex_config import (
-    OUTPUT_PARQUET,
-    TEST_ENV_FOLDER,
-    TEST_ENV_METRICS_FOLDER,
-    LINEAR_MIN_GRADE,
-    LINEAR_MAX_GRADE,
-    LINEAR_ROUNDING_STEP,
-    LINEAR_PASS_THRESHOLD_NORM,
-    BOLOGNA_PASS_THRESHOLD_NORM,
-    BOLOGNA_PASSING_DISTRIBUTION,
-    BOLOGNA_PASSING_LABELS,
-    BOLOGNA_FAIL_LABEL,
-    BOLOGNA_ORDERED_LABELS,
-)
+import vex_config as cfg
+
 
 # =========================================================
 # CONFIG
 # =========================================================
 
-GPT_MODEL_COL = "new_grade_openai/gpt-5.4"
+# None means: use all model columns configured in vex_metric/vex_config.py.
+SELECTED_MODEL_COLUMNS: list[str] | None = None
+
+INPUT_PARQUET = Path(cfg.OUTPUT_PARQUET)
+OUTPUT_DIR = SCRIPT_PATH.parent / "confusion_matrices"
+
+WRITE_ROW_NORMALIZED = True
+WRITE_EXAM_LEVEL_LABELS = True
+CLEAN_OUTPUT_DIR = True
+
+
+# =========================================================
+# COLUMN CONFIG
+# =========================================================
 
 TEST_ID_COL = "test_id"
 TEST_SIZE_COL = "test_size"
-QUESTION_ID_COL = "question_id"
 STUDENT_ID_COL = "member_id"
+QUESTION_ID_COL = "question_id"
 ANSWER_ID_COL = "answer_id"
 HUMAN_GRADE_COL = "human_grade"
 
-OUTPUT_DIR = BASE_DIR.parent / "confusion_matrices_gpt"
-
-WRITE_ROW_NORMALIZED = True
-
 
 # =========================================================
-# PATH HELPERS
+# PATH / NAME HELPERS
 # =========================================================
 
-def _input_env_parquet() -> Path:
-    return Path(OUTPUT_PARQUET)
+def _model_columns() -> list[str]:
+    if SELECTED_MODEL_COLUMNS is None:
+        return list(cfg.MODEL_COLUMNS)
+    return list(SELECTED_MODEL_COLUMNS)
 
 
-def _output_dir() -> Path:
-    return OUTPUT_DIR
+def _safe_file_token(value: str) -> str:
+    token = re.sub(r"[^A-Za-z0-9_-]+", "_", str(value).strip())
+    token = token.strip("._-")
+    return token or "model"
+
+
+def _short_model_name(model_col: str) -> str:
+    name = str(model_col)
+    for prefix in ("new_grade_", "grade_", "pred_"):
+        if name.startswith(prefix):
+            name = name.removeprefix(prefix)
+    return name.replace("/", "_")
+
+
+def _scope_dir(scope_name: str) -> Path:
+    return OUTPUT_DIR / scope_name
+
+
+def _with_extension(path_without_extension: Path, extension: str) -> Path:
+    return path_without_extension.parent / f"{path_without_extension.name}{extension}"
+
+
+def _read_parquet(path: Path) -> pd.DataFrame:
+    try:
+        return pd.read_parquet(path)
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pandas kann die Parquet-Datei nicht lesen. "
+            "Installiere dafuer pyarrow oder fastparquet, z.B. `pip install pyarrow`."
+        ) from exc
+
+
+def _write_dataframe_parquet_or_csv(df: pd.DataFrame, path: Path) -> Path:
+    try:
+        df.to_parquet(path, index=False)
+        return path
+    except ImportError:
+        csv_path = path.with_suffix(".csv")
+        df.to_csv(csv_path, index=False, encoding="utf-8")
+        return csv_path
 
 
 # =========================================================
 # VALIDATION
 # =========================================================
 
-def _validate_df(df: pd.DataFrame) -> None:
+def _validate_env_df(df: pd.DataFrame, model_cols: list[str]) -> None:
     required = [
         TEST_ID_COL,
         TEST_SIZE_COL,
-        QUESTION_ID_COL,
         STUDENT_ID_COL,
+        QUESTION_ID_COL,
         ANSWER_ID_COL,
         HUMAN_GRADE_COL,
-        GPT_MODEL_COL,
     ]
 
-    missing = [col for col in required if col not in df.columns]
-
-    if missing:
+    missing_required = [col for col in required if col not in df.columns]
+    if missing_required:
         raise ValueError(
-            f"Pflichtspalten fehlen im dataframe_env.parquet: {missing}"
+            f"Pflichtspalten fehlen im dataframe_env.parquet: {missing_required}"
+        )
+
+    missing_models = [col for col in model_cols if col not in df.columns]
+    if missing_models:
+        raise ValueError(
+            f"Modellspalten fehlen im dataframe_env.parquet: {missing_models}"
         )
 
 
@@ -92,35 +140,30 @@ def _assert_no_duplicate_exam_student_question_pairs(df: pd.DataFrame) -> None:
         keep=False,
     )
 
-    if duplicate_mask.any():
-        duplicates = (
-            df.loc[
-                duplicate_mask,
-                [
-                    TEST_ID_COL,
-                    TEST_SIZE_COL,
-                    STUDENT_ID_COL,
-                    QUESTION_ID_COL,
-                    ANSWER_ID_COL,
-                ],
-            ]
-            .sort_values(
-                [
-                    TEST_ID_COL,
-                    TEST_SIZE_COL,
-                    STUDENT_ID_COL,
-                    QUESTION_ID_COL,
-                ]
-            )
-            .head(100)
-        )
+    if not duplicate_mask.any():
+        return
 
-        raise ValueError(
-            "dataframe_env.parquet enthält doppelte "
-            "(test_id, test_size, member_id, question_id)-Paare. "
-            "Das macht Exam-Level-Confusion-Matrices ungültig.\n"
-            f"Beispiele:\n{duplicates.to_string(index=False)}"
-        )
+    duplicates = (
+        df.loc[
+            duplicate_mask,
+            [
+                TEST_ID_COL,
+                TEST_SIZE_COL,
+                STUDENT_ID_COL,
+                QUESTION_ID_COL,
+                ANSWER_ID_COL,
+            ],
+        ]
+        .sort_values([TEST_ID_COL, TEST_SIZE_COL, STUDENT_ID_COL, QUESTION_ID_COL])
+        .head(100)
+    )
+
+    raise ValueError(
+        "dataframe_env.parquet enthaelt doppelte "
+        "(test_id, test_size, member_id, question_id)-Paare. "
+        "Das macht Exam-Level-Confusion-Matrices ungueltig.\n"
+        f"Beispiele:\n{duplicates.to_string(index=False)}"
+    )
 
 
 # =========================================================
@@ -130,64 +173,41 @@ def _assert_no_duplicate_exam_student_question_pairs(df: pd.DataFrame) -> None:
 def _round_and_clip_linear_grades(grades: pd.Series) -> pd.Series:
     grades = pd.to_numeric(grades, errors="coerce")
 
-    if LINEAR_ROUNDING_STEP and LINEAR_ROUNDING_STEP > 0:
-        grades = (grades / LINEAR_ROUNDING_STEP).round() * LINEAR_ROUNDING_STEP
+    if cfg.LINEAR_ROUNDING_STEP and cfg.LINEAR_ROUNDING_STEP > 0:
+        grades = (
+            grades / float(cfg.LINEAR_ROUNDING_STEP)
+        ).round() * float(cfg.LINEAR_ROUNDING_STEP)
 
-    grades = grades.clip(
-        lower=LINEAR_MIN_GRADE,
-        upper=LINEAR_MAX_GRADE,
+    return grades.clip(
+        lower=float(cfg.LINEAR_MIN_GRADE),
+        upper=float(cfg.LINEAR_MAX_GRADE),
     )
-
-    return grades
 
 
 def _normalized_to_linear_grade_absolute(series: pd.Series) -> pd.Series:
     numeric = pd.to_numeric(series, errors="coerce")
 
-    grades = LINEAR_MIN_GRADE + (
-        (LINEAR_MAX_GRADE - LINEAR_MIN_GRADE) * numeric
+    grades = float(cfg.LINEAR_MIN_GRADE) + (
+        (float(cfg.LINEAR_MAX_GRADE) - float(cfg.LINEAR_MIN_GRADE)) * numeric
     )
 
     return _round_and_clip_linear_grades(grades)
 
 
-def _linear_grade_labels_float() -> list[float]:
-    step = float(LINEAR_ROUNDING_STEP)
-
-    if step <= 0:
-        raise ValueError("LINEAR_ROUNDING_STEP muss > 0 sein.")
-
-    labels = np.arange(
-        float(LINEAR_MIN_GRADE),
-        float(LINEAR_MAX_GRADE) + step / 2.0,
-        step,
-    )
-
-    return [float(round(x, 4)) for x in labels]
-
-
-def _linear_grade_labels_str() -> list[str]:
-    return [_format_linear_grade_label(x) for x in _linear_grade_labels_float()]
-
-
 def _format_linear_grade_label(value: Any) -> str:
-    """
-    Converts numeric linear grades into stable discrete class labels.
-
-    Important:
-    sklearn.confusion_matrix treats float arrays as continuous targets.
-    Therefore linear grades must be converted to strings before building
-    the confusion matrix.
-    """
     if pd.isna(value):
         return "nan"
+    return f"{float(value):.1f}"
 
-    numeric = float(value)
 
-    if numeric.is_integer():
-        return f"{numeric:.1f}"
-
-    return f"{numeric:.1f}"
+def _linear_grade_labels() -> list[str]:
+    step = float(cfg.LINEAR_ROUNDING_STEP)
+    labels = np.arange(
+        float(cfg.LINEAR_MIN_GRADE),
+        float(cfg.LINEAR_MAX_GRADE) + step / 2.0,
+        step,
+    )
+    return [_format_linear_grade_label(value) for value in labels]
 
 
 # =========================================================
@@ -195,11 +215,10 @@ def _format_linear_grade_label(value: Any) -> str:
 # =========================================================
 
 def _label_for_rank_position(position_1_based: int, cutoffs: list[int]) -> str:
-    for label, cutoff in zip(BOLOGNA_PASSING_LABELS, cutoffs):
+    for label, cutoff in zip(cfg.BOLOGNA_PASSING_LABELS, cutoffs):
         if position_1_based <= cutoff:
             return label
-
-    return BOLOGNA_PASSING_LABELS[-1]
+    return cfg.BOLOGNA_PASSING_LABELS[-1]
 
 
 def _assign_bologna_labels_from_normalized(
@@ -207,71 +226,56 @@ def _assign_bologna_labels_from_normalized(
     test_size: int,
 ) -> pd.Series:
     scores = pd.to_numeric(normalized_scores, errors="coerce")
+    result = pd.Series(cfg.BOLOGNA_FAIL_LABEL, index=scores.index, dtype="object")
 
     if scores.empty:
-        return pd.Series(dtype="object", index=normalized_scores.index)
+        return result
 
-    pass_threshold_abs = float(test_size) * float(BOLOGNA_PASS_THRESHOLD_NORM)
     absolute_points = scores * float(test_size)
+    pass_threshold_abs = float(test_size) * float(cfg.BOLOGNA_PASS_THRESHOLD_NORM)
 
-    passed_mask = absolute_points >= pass_threshold_abs
-    result = pd.Series(BOLOGNA_FAIL_LABEL, index=scores.index, dtype="object")
-
-    passed = absolute_points[passed_mask].dropna()
-
+    passed = absolute_points[absolute_points >= pass_threshold_abs].dropna()
     if passed.empty:
         return result
 
     n_passed = len(passed)
-
-    cumulative = np.cumsum(BOLOGNA_PASSING_DISTRIBUTION)
-    cutoffs = [int(np.ceil(n_passed * x)) for x in cumulative]
+    cumulative = np.cumsum(cfg.BOLOGNA_PASSING_DISTRIBUTION)
+    cutoffs = [int(np.ceil(n_passed * value)) for value in cumulative]
     cutoffs[-1] = n_passed
 
-    passed_df = (
-        pd.DataFrame(
-            {
-                "idx": passed.index,
-                "points": passed.values,
-            }
-        )
+    ranked = (
+        pd.DataFrame({"idx": passed.index, "points": passed.values})
         .sort_values(["points", "idx"], ascending=[False, True])
         .reset_index(drop=True)
     )
 
-    current_rank_start = 1
-
-    for points_value, group in passed_df.groupby("points", sort=False):
-        group_size = len(group)
-
-        rank_start = current_rank_start
-        rank_end = current_rank_start + group_size - 1
-
+    rank_start = 1
+    for points_value, tied_group in ranked.groupby("points", sort=False):
+        group_size = len(tied_group)
+        rank_end = rank_start + group_size - 1
         midpoint_rank = int(round((rank_start + rank_end) / 2))
         label = _label_for_rank_position(midpoint_rank, cutoffs)
-
-        result.loc[group["idx"].tolist()] = label
-
-        current_rank_start = rank_end + 1
+        result.loc[tied_group["idx"].tolist()] = label
+        rank_start = rank_end + 1
 
     return result
 
 
 # =========================================================
-# EXAM-LEVEL STUDENT AGGREGATION
+# EXAM-LEVEL LABELS
 # =========================================================
 
-def _student_totals_for_exam(
+def _complete_student_exam_rows(
     exam_df: pd.DataFrame,
+    model_col: str,
     test_size: int,
 ) -> pd.DataFrame:
     subset = exam_df[
         [
             STUDENT_ID_COL,
             QUESTION_ID_COL,
-            ANSWER_ID_COL,
             HUMAN_GRADE_COL,
-            GPT_MODEL_COL,
+            model_col,
         ]
     ].copy()
 
@@ -279,35 +283,7 @@ def _student_totals_for_exam(
         subset[HUMAN_GRADE_COL],
         errors="coerce",
     )
-
-    subset[GPT_MODEL_COL] = pd.to_numeric(
-        subset[GPT_MODEL_COL],
-        errors="coerce",
-    )
-
-    duplicate_mask = subset.duplicated(
-        subset=[STUDENT_ID_COL, QUESTION_ID_COL],
-        keep=False,
-    )
-
-    if duplicate_mask.any():
-        duplicates = (
-            subset.loc[
-                duplicate_mask,
-                [
-                    STUDENT_ID_COL,
-                    QUESTION_ID_COL,
-                    ANSWER_ID_COL,
-                ],
-            ]
-            .sort_values([STUDENT_ID_COL, QUESTION_ID_COL])
-            .head(50)
-        )
-
-        raise ValueError(
-            "Doppelte (member_id, question_id)-Paare in einer virtuellen Prüfung.\n"
-            f"Beispiele:\n{duplicates.to_string(index=False)}"
-        )
+    subset[model_col] = pd.to_numeric(subset[model_col], errors="coerce")
 
     grouped = (
         subset.groupby(STUDENT_ID_COL)
@@ -315,9 +291,9 @@ def _student_totals_for_exam(
             n_rows=(QUESTION_ID_COL, "size"),
             n_questions=(QUESTION_ID_COL, "nunique"),
             human_valid=(HUMAN_GRADE_COL, lambda s: int(s.notna().sum())),
-            pred_valid=(GPT_MODEL_COL, lambda s: int(s.notna().sum())),
+            pred_valid=(model_col, lambda s: int(s.notna().sum())),
             gold_total=(HUMAN_GRADE_COL, "sum"),
-            pred_total=(GPT_MODEL_COL, "sum"),
+            pred_total=(model_col, "sum"),
         )
         .reset_index()
     )
@@ -329,61 +305,68 @@ def _student_totals_for_exam(
         & (grouped["pred_valid"] == int(test_size))
     )
 
-    grouped = grouped[complete_mask].copy()
+    complete = grouped[complete_mask].copy()
+    if complete.empty:
+        return complete
 
-    if grouped.empty:
-        return grouped
+    complete["gold_norm"] = complete["gold_total"] / float(test_size)
+    complete["pred_norm"] = complete["pred_total"] / float(test_size)
 
-    grouped["gold_norm"] = grouped["gold_total"] / float(test_size)
-    grouped["pred_norm"] = grouped["pred_total"] / float(test_size)
-
-    grouped["gold_linear_abs"] = _normalized_to_linear_grade_absolute(
-        grouped["gold_norm"]
+    complete["gold_linear_abs"] = _normalized_to_linear_grade_absolute(
+        complete["gold_norm"]
     )
-    grouped["pred_linear_abs"] = _normalized_to_linear_grade_absolute(
-        grouped["pred_norm"]
+    complete["pred_linear_abs"] = _normalized_to_linear_grade_absolute(
+        complete["pred_norm"]
     )
-
-    grouped["gold_linear_abs_label"] = grouped["gold_linear_abs"].map(
+    complete["gold_linear_abs_label"] = complete["gold_linear_abs"].map(
         _format_linear_grade_label
     )
-    grouped["pred_linear_abs_label"] = grouped["pred_linear_abs"].map(
+    complete["pred_linear_abs_label"] = complete["pred_linear_abs"].map(
         _format_linear_grade_label
     )
 
-    grouped["gold_bologna"] = _assign_bologna_labels_from_normalized(
-        grouped["gold_norm"],
+    complete["gold_bologna"] = _assign_bologna_labels_from_normalized(
+        complete["gold_norm"],
         test_size=int(test_size),
     )
-    grouped["pred_bologna"] = _assign_bologna_labels_from_normalized(
-        grouped["pred_norm"],
+    complete["pred_bologna"] = _assign_bologna_labels_from_normalized(
+        complete["pred_norm"],
         test_size=int(test_size),
     )
 
-    return grouped
+    return complete
 
 
-def build_exam_level_gpt_predictions(df_env: pd.DataFrame) -> pd.DataFrame:
+def build_exam_level_labels(
+    df_env: pd.DataFrame,
+    model_cols: list[str],
+) -> pd.DataFrame:
     rows: list[pd.DataFrame] = []
 
-    for (test_id, test_size), exam_df in df_env.groupby(
-        [TEST_ID_COL, TEST_SIZE_COL],
-        sort=True,
-    ):
-        test_size_int = int(test_size)
+    for model_col in model_cols:
+        print(f"Building exam-level labels for: {model_col}")
 
-        student_df = _student_totals_for_exam(
-            exam_df=exam_df.copy(),
-            test_size=test_size_int,
-        )
+        for (test_id, test_size), exam_df in df_env.groupby(
+            [TEST_ID_COL, TEST_SIZE_COL],
+            sort=True,
+        ):
+            test_size_int = int(test_size)
 
-        if student_df.empty:
-            continue
+            labels = _complete_student_exam_rows(
+                exam_df=exam_df,
+                model_col=model_col,
+                test_size=test_size_int,
+            )
 
-        student_df.insert(0, TEST_ID_COL, test_id)
-        student_df.insert(1, TEST_SIZE_COL, test_size_int)
+            if labels.empty:
+                continue
 
-        rows.append(student_df)
+            labels.insert(0, "model_col", model_col)
+            labels.insert(1, "model", _short_model_name(model_col))
+            labels.insert(2, TEST_ID_COL, test_id)
+            labels.insert(3, TEST_SIZE_COL, test_size_int)
+
+            rows.append(labels)
 
     if not rows:
         return pd.DataFrame()
@@ -392,277 +375,269 @@ def build_exam_level_gpt_predictions(df_env: pd.DataFrame) -> pd.DataFrame:
 
 
 # =========================================================
-# CONFUSION MATRIX HELPERS
+# CONFUSION MATRICES
 # =========================================================
 
 def _row_normalize_matrix(matrix: np.ndarray) -> np.ndarray:
     matrix = matrix.astype(float)
-
     row_sums = matrix.sum(axis=1, keepdims=True)
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        normalized = np.divide(
+        return np.divide(
             matrix,
             row_sums,
             out=np.zeros_like(matrix, dtype=float),
             where=row_sums != 0,
         )
 
-    return normalized
+
+def _confusion_matrix(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    labels: list[str],
+) -> np.ndarray:
+    table = pd.crosstab(
+        pd.Series(y_true, name="human"),
+        pd.Series(y_pred, name="model"),
+        dropna=False,
+    )
+    table = table.reindex(index=labels, columns=labels, fill_value=0)
+    return table.to_numpy(dtype=int)
 
 
-def _save_confusion_matrix_csv(
+def _save_matrix_csv(
     matrix: np.ndarray,
-    labels: list[Any],
+    labels: list[str],
     output_path: Path,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
     df_matrix = pd.DataFrame(
         matrix,
         index=[f"human_{label}" for label in labels],
-        columns=[f"gpt_{label}" for label in labels],
+        columns=[f"model_{label}" for label in labels],
     )
-
     df_matrix.to_csv(output_path, index=True, encoding="utf-8")
 
 
-def _plot_confusion_matrix(
+def _plot_matrix(
     matrix: np.ndarray,
-    labels: list[Any],
+    labels: list[str],
     title: str,
     output_path: Path,
-    value_format: str,
+    *,
+    normalized: bool,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(10, 8))
-
-    im = ax.imshow(matrix)
+    image = ax.imshow(matrix, cmap="Blues")
 
     ax.set_title(title)
-    ax.set_xlabel("GPT predicted grade/label")
-    ax.set_ylabel("Human grade/label")
-
+    ax.set_xlabel("Model prediction")
+    ax.set_ylabel("Human reference")
     ax.set_xticks(np.arange(len(labels)))
     ax.set_yticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_yticklabels(labels)
 
-    ax.set_xticklabels([str(label) for label in labels], rotation=45, ha="right")
-    ax.set_yticklabels([str(label) for label in labels])
+    max_value = float(np.nanmax(matrix)) if matrix.size else 0.0
+    threshold = max_value / 2.0 if max_value > 0 else 0.0
 
-    for i in range(matrix.shape[0]):
-        for j in range(matrix.shape[1]):
-            value = matrix[i, j]
-
-            if value_format == "int":
-                text = f"{int(value)}"
-            else:
-                text = f"{value:.2f}"
-
+    for row_idx in range(matrix.shape[0]):
+        for col_idx in range(matrix.shape[1]):
+            value = matrix[row_idx, col_idx]
+            text = f"{value:.2f}" if normalized else f"{int(value)}"
+            color = "white" if value > threshold else "black"
             ax.text(
-                j,
-                i,
+                col_idx,
+                row_idx,
                 text,
                 ha="center",
                 va="center",
+                color=color,
             )
 
-    fig.colorbar(im, ax=ax)
+    fig.colorbar(image, ax=ax)
     fig.tight_layout()
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
 
 
+def _matrix_summary_row(
+    *,
+    model_col: str,
+    scope: str,
+    scale: str,
+    matrix: np.ndarray,
+) -> dict[str, Any]:
+    total = int(matrix.sum())
+    correct = int(np.trace(matrix))
+    accuracy = correct / total if total else np.nan
+
+    return {
+        "model_col": model_col,
+        "model": _short_model_name(model_col),
+        "scope": scope,
+        "scale": scale,
+        "n": total,
+        "correct": correct,
+        "accuracy": accuracy,
+    }
+
+
 def _write_matrix_bundle(
+    *,
     df: pd.DataFrame,
+    model_col: str,
+    scope: str,
+    scale: str,
     y_true_col: str,
     y_pred_col: str,
-    labels: list[Any],
+    labels: list[str],
     output_prefix: Path,
-    title: str,
-) -> None:
-    subset = df[[y_true_col, y_pred_col]].copy()
+) -> dict[str, Any]:
+    subset = df[[y_true_col, y_pred_col]].dropna().copy()
     subset[y_true_col] = subset[y_true_col].astype(str)
     subset[y_pred_col] = subset[y_pred_col].astype(str)
 
-    y_true = subset[y_true_col].to_numpy()
-    y_pred = subset[y_pred_col].to_numpy()
-
-    labels = [str(label) for label in labels]
-
-    matrix = confusion_matrix(
-        y_true=y_true,
-        y_pred=y_pred,
+    matrix = _confusion_matrix(
+        y_true=subset[y_true_col].to_numpy(),
+        y_pred=subset[y_pred_col].to_numpy(),
         labels=labels,
     )
 
-    _save_confusion_matrix_csv(
+    _save_matrix_csv(
         matrix=matrix,
         labels=labels,
-        output_path=output_prefix.with_suffix(".csv"),
+        output_path=_with_extension(output_prefix, ".csv"),
     )
-
-    _plot_confusion_matrix(
+    _plot_matrix(
         matrix=matrix,
         labels=labels,
-        title=title,
-        output_path=output_prefix.with_suffix(".png"),
-        value_format="int",
+        title=f"{_short_model_name(model_col)} - {scope} - {scale}",
+        output_path=_with_extension(output_prefix, ".png"),
+        normalized=False,
     )
 
     if WRITE_ROW_NORMALIZED:
-        normalized = _row_normalize_matrix(matrix)
-
-        normalized_prefix = output_prefix.parent / f"{output_prefix.name}_row_normalized"
-
-        _save_confusion_matrix_csv(
-            matrix=normalized,
+        normalized_matrix = _row_normalize_matrix(matrix)
+        normalized_prefix = output_prefix.parent / (
+            f"{output_prefix.name}_row_normalized"
+        )
+        _save_matrix_csv(
+            matrix=normalized_matrix,
             labels=labels,
-            output_path=normalized_prefix.with_suffix(".csv"),
+            output_path=_with_extension(normalized_prefix, ".csv"),
+        )
+        _plot_matrix(
+            matrix=normalized_matrix,
+            labels=labels,
+            title=f"{_short_model_name(model_col)} - {scope} - {scale} - row normalized",
+            output_path=_with_extension(normalized_prefix, ".png"),
+            normalized=True,
         )
 
-        _plot_confusion_matrix(
-            matrix=normalized,
-            labels=labels,
-            title=f"{title} - row normalized",
-            output_path=normalized_prefix.with_suffix(".png"),
-            value_format="float",
-        )
-
-
-def write_confusion_matrices(exam_level_df: pd.DataFrame) -> None:
-    out_dir = _output_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    linear_labels = _linear_grade_labels_str()
-    bologna_labels = BOLOGNA_ORDERED_LABELS
-
-    # -----------------------------------------------------
-    # Overall matrices across all virtual exams
-    # -----------------------------------------------------
-    _write_matrix_bundle(
-        df=exam_level_df,
-        y_true_col="gold_linear_abs_label",
-        y_pred_col="pred_linear_abs_label",
-        labels=linear_labels,
-        output_prefix=out_dir / "overall_linear_abs_confusion_matrix_gpt",
-        title="GPT vs Human - Absolute Linear Grade Scale - Overall",
+    return _matrix_summary_row(
+        model_col=model_col,
+        scope=scope,
+        scale=scale,
+        matrix=matrix,
     )
 
-    _write_matrix_bundle(
-        df=exam_level_df,
-        y_true_col="gold_bologna",
-        y_pred_col="pred_bologna",
-        labels=bologna_labels,
-        output_prefix=out_dir / "overall_bologna_confusion_matrix_gpt",
-        title="GPT vs Human - Bologna Grade Scale - Overall",
-    )
 
-    # -----------------------------------------------------
-    # Matrices per test size
-    # -----------------------------------------------------
-    for test_size in sorted(exam_level_df[TEST_SIZE_COL].dropna().astype(int).unique()):
-        df_size = exam_level_df[
-            exam_level_df[TEST_SIZE_COL].astype(int) == int(test_size)
+def write_confusion_matrices(exam_labels: pd.DataFrame) -> pd.DataFrame:
+    summary_rows: list[dict[str, Any]] = []
+    linear_labels = _linear_grade_labels()
+    bologna_labels = list(cfg.BOLOGNA_ORDERED_LABELS)
+
+    scopes: list[tuple[str, pd.DataFrame]] = [("overall", exam_labels)]
+    for test_size in sorted(exam_labels[TEST_SIZE_COL].dropna().astype(int).unique()):
+        scope_df = exam_labels[
+            exam_labels[TEST_SIZE_COL].astype(int) == int(test_size)
         ].copy()
+        scopes.append((f"test_size_{test_size}", scope_df))
 
-        size_dir = out_dir / f"test_size_{test_size}"
-        size_dir.mkdir(parents=True, exist_ok=True)
+    for model_col, model_df in exam_labels.groupby("model_col", sort=False):
+        model_token = _safe_file_token(_short_model_name(model_col))
 
-        _write_matrix_bundle(
-            df=df_size,
-            y_true_col="gold_linear_abs_label",
-            y_pred_col="pred_linear_abs_label",
-            labels=linear_labels,
-            output_prefix=size_dir / f"linear_abs_confusion_matrix_gpt_q{test_size}",
-            title=f"GPT vs Human - Absolute Linear Grade Scale - Q{test_size}",
-        )
+        for scope_name, scope_df in scopes:
+            scoped_model_df = scope_df[scope_df["model_col"] == model_col].copy()
+            if scoped_model_df.empty:
+                continue
 
-        _write_matrix_bundle(
-            df=df_size,
-            y_true_col="gold_bologna",
-            y_pred_col="pred_bologna",
-            labels=bologna_labels,
-            output_prefix=size_dir / f"bologna_confusion_matrix_gpt_q{test_size}",
-            title=f"GPT vs Human - Bologna Grade Scale - Q{test_size}",
-        )
+            scope_dir = _scope_dir(scope_name)
+
+            summary_rows.append(
+                _write_matrix_bundle(
+                    df=scoped_model_df,
+                    model_col=str(model_col),
+                    scope=scope_name,
+                    scale="linear_abs",
+                    y_true_col="gold_linear_abs_label",
+                    y_pred_col="pred_linear_abs_label",
+                    labels=linear_labels,
+                    output_prefix=scope_dir / f"{model_token}_linear_abs",
+                )
+            )
+
+            summary_rows.append(
+                _write_matrix_bundle(
+                    df=scoped_model_df,
+                    model_col=str(model_col),
+                    scope=scope_name,
+                    scale="bologna",
+                    y_true_col="gold_bologna",
+                    y_pred_col="pred_bologna",
+                    labels=bologna_labels,
+                    output_prefix=scope_dir / f"{model_token}_bologna",
+                )
+            )
+
+    return pd.DataFrame(summary_rows)
 
 
 # =========================================================
-# REPORT
+# SUMMARY
 # =========================================================
 
-def write_summary(exam_level_df: pd.DataFrame) -> None:
-    out_dir = _output_dir()
-    summary_path = out_dir / "confusion_matrix_summary.txt"
+def write_text_summary(
+    exam_labels: pd.DataFrame,
+    matrix_summary: pd.DataFrame,
+) -> None:
+    output_path = OUTPUT_DIR / "confusion_matrix_summary.txt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-
     lines.append("=" * 100)
-    lines.append("GPT CONFUSION MATRIX SUMMARY")
+    lines.append("VEX CONFUSION MATRICES")
     lines.append("=" * 100)
-    lines.append(f"Input dataframe: {Path(OUTPUT_PARQUET).resolve()}")
-    lines.append(f"GPT model column: {GPT_MODEL_COL}")
-    lines.append(f"Output folder: {out_dir.resolve()}")
-    lines.append("")
-    lines.append(f"Rows after exam-level aggregation: {len(exam_level_df)}")
-    lines.append(f"Unique tests: {exam_level_df[TEST_ID_COL].nunique()}")
+    lines.append(f"Input dataframe: {INPUT_PARQUET.resolve()}")
+    lines.append(f"Output folder:   {OUTPUT_DIR.resolve()}")
+    lines.append(f"Models:          {exam_labels['model_col'].nunique()}")
+    lines.append(f"Rows:            {len(exam_labels)}")
     lines.append(
-        "Test sizes: "
+        "Test sizes:      "
         + ", ".join(
             map(
                 str,
-                sorted(
-                    exam_level_df[TEST_SIZE_COL]
-                    .dropna()
-                    .astype(int)
-                    .unique()
-                    .tolist()
-                ),
+                sorted(exam_labels[TEST_SIZE_COL].dropna().astype(int).unique()),
             )
         )
     )
     lines.append("")
 
-    lines.append("[Linear absolute grade distribution]")
-    lines.append("")
-    lines.append("Human:")
-    lines.append(
-        exam_level_df["gold_linear_abs_label"]
-        .value_counts()
-        .reindex(_linear_grade_labels_str(), fill_value=0)
-        .to_string()
-    )
-    lines.append("")
-    lines.append("GPT:")
-    lines.append(
-        exam_level_df["pred_linear_abs_label"]
-        .value_counts()
-        .reindex(_linear_grade_labels_str(), fill_value=0)
-        .to_string()
-    )
-    lines.append("")
+    if not matrix_summary.empty:
+        lines.append("Accuracy summary:")
+        lines.append(
+            matrix_summary.sort_values(["scope", "scale", "accuracy"], ascending=[
+                True,
+                True,
+                False,
+            ]).to_string(index=False)
+        )
+        lines.append("")
 
-    lines.append("[Bologna grade distribution]")
-    lines.append("")
-    lines.append("Human:")
-    lines.append(
-        exam_level_df["gold_bologna"]
-        .value_counts()
-        .reindex(BOLOGNA_ORDERED_LABELS, fill_value=0)
-        .to_string()
-    )
-    lines.append("")
-    lines.append("GPT:")
-    lines.append(
-        exam_level_df["pred_bologna"]
-        .value_counts()
-        .reindex(BOLOGNA_ORDERED_LABELS, fill_value=0)
-        .to_string()
-    )
-    lines.append("")
-
-    summary_path.write_text("\n".join(lines), encoding="utf-8")
+    output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 # =========================================================
@@ -670,53 +645,64 @@ def write_summary(exam_level_df: pd.DataFrame) -> None:
 # =========================================================
 
 def main() -> None:
-    input_path = _input_env_parquet()
+    model_cols = _model_columns()
 
-    if not input_path.exists():
+    if not INPUT_PARQUET.exists():
         raise FileNotFoundError(
-            f"dataframe_env.parquet nicht gefunden: {input_path.resolve()}"
+            f"dataframe_env.parquet nicht gefunden: {INPUT_PARQUET.resolve()}"
         )
 
     print("=" * 100)
-    print("GPT CONFUSION MATRICES")
+    print("VEX CONFUSION MATRICES")
     print("=" * 100)
-    print(f"Input:      {input_path.resolve()}")
-    print(f"GPT column: {GPT_MODEL_COL}")
-    print(f"Output:     {_output_dir().resolve()}")
+    print(f"Input:  {INPUT_PARQUET.resolve()}")
+    print(f"Output: {OUTPUT_DIR.resolve()}")
+    print(f"Models: {len(model_cols)}")
     print("")
 
-    df_env = pd.read_parquet(input_path)
-
-    _validate_df(df_env)
+    df_env = _read_parquet(INPUT_PARQUET)
+    _validate_env_df(df_env, model_cols)
     _assert_no_duplicate_exam_student_question_pairs(df_env)
 
-    print("Building exam-level GPT predictions...")
-    exam_level_df = build_exam_level_gpt_predictions(df_env)
+    if CLEAN_OUTPUT_DIR and OUTPUT_DIR.exists():
+        shutil.rmtree(OUTPUT_DIR)
 
-    if exam_level_df.empty:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    exam_labels = build_exam_level_labels(
+        df_env=df_env,
+        model_cols=model_cols,
+    )
+
+    if exam_labels.empty:
         raise ValueError(
-            "Keine vollständigen exam-level Studentenzeilen gefunden. "
-            "Confusion-Matrices können nicht gebaut werden."
+            "Keine vollstaendigen exam-level Studentenzeilen gefunden. "
+            "Confusion-Matrices koennen nicht gebaut werden."
         )
 
-    _output_dir().mkdir(parents=True, exist_ok=True)
+    if WRITE_EXAM_LEVEL_LABELS:
+        labels_path = OUTPUT_DIR / "exam_level_confusion_labels.parquet"
+        written_labels_path = _write_dataframe_parquet_or_csv(
+            exam_labels,
+            labels_path,
+        )
+        print(f"Exam-level labels saved to: {written_labels_path.resolve()}")
 
-    exam_level_output_path = _output_dir() / "gpt_exam_level_labels.parquet"
-    exam_level_df.to_parquet(exam_level_output_path, index=False)
+    matrix_summary = write_confusion_matrices(exam_labels)
+    summary_csv_path = OUTPUT_DIR / "confusion_matrix_summary.csv"
+    matrix_summary.to_csv(summary_csv_path, index=False, encoding="utf-8")
 
-    print(f"Exam-level labels saved to: {exam_level_output_path.resolve()}")
-
-    print("Writing confusion matrices...")
-    write_confusion_matrices(exam_level_df)
-
-    print("Writing summary...")
-    write_summary(exam_level_df)
+    write_text_summary(
+        exam_labels=exam_labels,
+        matrix_summary=matrix_summary,
+    )
 
     print("")
     print("=" * 100)
     print("DONE")
     print("=" * 100)
-    print(f"Output folder: {_output_dir().resolve()}")
+    print(f"Summary CSV: {summary_csv_path.resolve()}")
+    print(f"Output dir:   {OUTPUT_DIR.resolve()}")
 
 
 if __name__ == "__main__":
