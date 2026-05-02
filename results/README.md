@@ -49,6 +49,8 @@ Current behavior:
 - x-axis: item-level QWK,
 - y-axis: exam-level QWK,
 - separate outputs for absolute linear and Bologna grading,
+- exam-level metrics are split by virtual exam size,
+- writes separate q5, q10, q15, and q20 plot/data/sanity outputs when those test sizes are present,
 - sanity-check text with the exact loaded values.
 
 Outputs are written under:
@@ -82,8 +84,9 @@ Creates grading-granularity plots for exam-level performance.
 Current behavior:
 
 - input: `vex_metric/vex_test_env/4_dataframe/dataframe_env.parquet`,
-- focuses on `test_size=10`,
+- writes separate q5, q10, q15, and q20 plot/data/sanity outputs when those test sizes are present,
 - evaluates pass/fail and then 2 through 10 ordered grade categories,
+- compares absolute threshold and Bologna distribution grading,
 - writes per-exam data, model summaries, and sanity-check text.
 
 Outputs are written under:

@@ -32,7 +32,7 @@ Metrics used:
         - item_qwk
         - item_tau_b (sanity reference only)
 
-    Exam level (means over virtual exams):
+    Exam level (means over virtual exams, kept separate by test_size):
         - el_qwk_linear_abs
         - el_qwk_bologna
         - el_acc_linear_abs
@@ -40,17 +40,17 @@ Metrics used:
 
 Outputs:
     results/figures_plot_2/
-        figure_2_item_qwk_vs_el_qwk_linear_bologna.pdf
-        figure_2_item_qwk_vs_el_qwk_linear_bologna.png
+        figure_2_q5_item_qwk_vs_el_qwk_linear_bologna.pdf/png
+        figure_2_q10_item_qwk_vs_el_qwk_linear_bologna.pdf/png
+        figure_2_q15_item_qwk_vs_el_qwk_linear_bologna.pdf/png
+        figure_2_q20_item_qwk_vs_el_qwk_linear_bologna.pdf/png
 
-        figure_2_item_mse_vs_el_qwk_linear_bologna.pdf
-        figure_2_item_mse_vs_el_qwk_linear_bologna.png
+        figure_2_q*_item_mse_vs_el_qwk_linear_bologna.pdf/png
+        figure_2_q*_item_mse_vs_el_acc_linear_bologna.pdf/png
 
-        figure_2_item_mse_vs_el_acc_linear_bologna.pdf
-        figure_2_item_mse_vs_el_acc_linear_bologna.png
-
-        figure_2_item_vs_exam_data.csv
-        figure_2_sanity_check.txt
+        figure_2_q*_item_vs_exam_data.csv
+        figure_2_q*_sanity_check.txt
+        figure_2_item_vs_exam_data.csv  (combined across q sizes)
 """
 
 from __future__ import annotations
@@ -154,17 +154,7 @@ BOLOGNA_EL_QWK_COL = "el_qwk_bologna"
 LINEAR_EL_ACC_COL = "el_acc_linear_abs"
 BOLOGNA_EL_ACC_COL = "el_acc_bologna"
 
-DATA_CSV = OUTPUT_DIR / "figure_2_item_vs_exam_data.csv"
-SANITY_CHECK_TXT = OUTPUT_DIR / "figure_2_sanity_check.txt"
-
-FIG_QWK_VS_ELQWK_PDF = OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.pdf"
-FIG_QWK_VS_ELQWK_PNG = OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.png"
-
-FIG_MSE_VS_ELQWK_PDF = OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.pdf"
-FIG_MSE_VS_ELQWK_PNG = OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.png"
-
-FIG_MSE_VS_ELACC_PDF = OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.pdf"
-FIG_MSE_VS_ELACC_PNG = OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.png"
+COMBINED_DATA_CSV = OUTPUT_DIR / "figure_2_item_vs_exam_data.csv"
 
 STALE_OUTPUTS = [
     OUTPUT_DIR / "figure_2_qwk_vs_tau.pdf",
@@ -188,6 +178,13 @@ STALE_OUTPUTS = [
     OUTPUT_DIR / "figure_2_qwk_vs_tau_by_test_size.pdf",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_by_test_size.png",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_per_virtual_test.csv",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.pdf",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.png",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.pdf",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.png",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.pdf",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.png",
+    OUTPUT_DIR / "figure_2_sanity_check.txt",
 ]
 
 
@@ -607,7 +604,7 @@ def compute_exam_summary(
     }
 
     summary = (
-        subset.groupby(MODEL_COL, dropna=False)
+        subset.groupby([MODEL_COL, TEST_SIZE_COL], dropna=False)
         .agg(
             el_qwk_linear=("el_qwk_linear_abs", "mean"),
             el_qwk_linear_std=("el_qwk_linear_abs", "std"),
@@ -681,14 +678,17 @@ def write_sanity_check(
     plot_df: pd.DataFrame,
     item_stats: dict[str, Any],
     exam_stats: dict[str, Any],
+    output_path: Path,
+    test_size: int,
 ) -> None:
     lines: list[str] = []
 
     lines.append("=" * 100)
-    lines.append("FIGURE 2 SANITY CHECK")
+    lines.append(f"FIGURE 2 Q{test_size} SANITY CHECK")
     lines.append("=" * 100)
     lines.append(f"Item input parquet: {INPUT_PARQUET.resolve()}")
     lines.append(f"Exam metrics parquet: {EXAM_METRICS_PARQUET.resolve()}")
+    lines.append(f"Target test_size: {test_size}")
     lines.append(
         "Item dataframe logic: evaluate_dataframe.py::_build_item_df_from_original_input, "
         "plus label_type == 'gold' filter when available."
@@ -716,6 +716,7 @@ def write_sanity_check(
         "model_col",
         "model",
         "family",
+        TEST_SIZE_COL,
         "item_source_n",
         "item_n",
         "item_missing_predictions",
@@ -787,7 +788,7 @@ def write_sanity_check(
         table.sort_values(["el_acc_linear_rank", "item_mse_rank", "model"]).to_string(index=False)
     )
 
-    SANITY_CHECK_TXT.write_text("\n".join(lines), encoding="utf-8")
+    output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 # =========================================================
@@ -879,7 +880,7 @@ def plot_scatter_generic(
     ax.set_title(f"{panel_label} {x_label} vs. {y_label}")
 
     style_axes(ax)
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
 
 
 def plot_slope_chart_generic(
@@ -1051,8 +1052,23 @@ def save_comparison_figure(
     return [output_pdf, output_png]
 
 
-def save_plots(plot_df: pd.DataFrame) -> list[Path]:
+def figure_2_paths(test_size: int) -> dict[str, Path]:
+    q = f"q{int(test_size)}"
+    return {
+        "data_csv": OUTPUT_DIR / f"figure_2_{q}_item_vs_exam_data.csv",
+        "sanity_txt": OUTPUT_DIR / f"figure_2_{q}_sanity_check.txt",
+        "qwk_elqwk_pdf": OUTPUT_DIR / f"figure_2_{q}_item_qwk_vs_el_qwk_linear_bologna.pdf",
+        "qwk_elqwk_png": OUTPUT_DIR / f"figure_2_{q}_item_qwk_vs_el_qwk_linear_bologna.png",
+        "mse_elqwk_pdf": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_qwk_linear_bologna.pdf",
+        "mse_elqwk_png": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_qwk_linear_bologna.png",
+        "mse_elacc_pdf": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_acc_linear_bologna.pdf",
+        "mse_elacc_png": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_acc_linear_bologna.png",
+    }
+
+
+def save_plots(plot_df: pd.DataFrame, test_size: int) -> list[Path]:
     written: list[Path] = []
+    paths = figure_2_paths(test_size)
 
     # 1) Item-QWK vs EL-QWK
     written.extend(
@@ -1070,8 +1086,8 @@ def save_plots(plot_df: pd.DataFrame) -> list[Path]:
             bologna_metric_label="EL-QWK Bologna",
             bologna_metric_short="EL-QWK",
             bologna_ascending=False,
-            output_pdf=FIG_QWK_VS_ELQWK_PDF,
-            output_png=FIG_QWK_VS_ELQWK_PNG,
+            output_pdf=paths["qwk_elqwk_pdf"],
+            output_png=paths["qwk_elqwk_png"],
         )
     )
 
@@ -1091,8 +1107,8 @@ def save_plots(plot_df: pd.DataFrame) -> list[Path]:
             bologna_metric_label="EL-QWK Bologna",
             bologna_metric_short="EL-QWK",
             bologna_ascending=False,
-            output_pdf=FIG_MSE_VS_ELQWK_PDF,
-            output_png=FIG_MSE_VS_ELQWK_PNG,
+            output_pdf=paths["mse_elqwk_pdf"],
+            output_png=paths["mse_elqwk_png"],
         )
     )
 
@@ -1112,8 +1128,8 @@ def save_plots(plot_df: pd.DataFrame) -> list[Path]:
             bologna_metric_label="EL-Acc Bologna",
             bologna_metric_short="EL-Acc",
             bologna_ascending=False,
-            output_pdf=FIG_MSE_VS_ELACC_PDF,
-            output_png=FIG_MSE_VS_ELACC_PNG,
+            output_pdf=paths["mse_elacc_pdf"],
+            output_png=paths["mse_elacc_png"],
         )
     )
 
@@ -1161,26 +1177,78 @@ def main() -> None:
     exam_df = read_parquet(EXAM_METRICS_PARQUET)
     exam_summary_df, exam_stats = compute_exam_summary(exam_df)
 
-    plot_df = merge_item_and_exam_metrics(item_metrics_df, exam_summary_df)
-
-    if plot_df.empty:
-        raise ValueError("No model metrics available for plotting.")
-
-    plot_df.to_csv(DATA_CSV, index=False, encoding="utf-8")
-
-    write_sanity_check(
-        plot_df=plot_df,
-        item_stats=item_stats,
-        exam_stats=exam_stats,
+    available_test_sizes = sorted(
+        int(value)
+        for value in pd.to_numeric(
+            exam_summary_df[TEST_SIZE_COL],
+            errors="coerce",
+        )
+        .dropna()
+        .unique()
+        .tolist()
     )
 
-    written_plot_paths = save_plots(plot_df)
+    if not available_test_sizes:
+        raise ValueError("No test_size values available in exam metrics.")
+
+    all_plot_dfs: list[pd.DataFrame] = []
+    written_plot_paths: list[Path] = []
+    written_data_paths: list[Path] = []
+
+    for test_size in available_test_sizes:
+        exam_summary_size_df = exam_summary_df[
+            pd.to_numeric(exam_summary_df[TEST_SIZE_COL], errors="coerce")
+            == int(test_size)
+        ].copy()
+
+        plot_df = merge_item_and_exam_metrics(
+            item_metrics_df=item_metrics_df,
+            exam_summary_df=exam_summary_size_df,
+        )
+
+        if plot_df.empty:
+            raise ValueError(f"No model metrics available for q{test_size}.")
+
+        paths = figure_2_paths(test_size)
+
+        plot_df.to_csv(paths["data_csv"], index=False, encoding="utf-8")
+        written_data_paths.append(paths["data_csv"])
+        all_plot_dfs.append(plot_df)
+
+        exam_stats_size = {
+            **exam_stats,
+            "target_test_size": int(test_size),
+            "exam_metric_rows_for_target_test_size": int(
+                (
+                    pd.to_numeric(exam_df[TEST_SIZE_COL], errors="coerce")
+                    == int(test_size)
+                ).sum()
+            ),
+            "exam_metric_rows_after_model_filter_for_target_test_size": int(
+                plot_df["el_qwk_linear_n"].sum()
+            ),
+        }
+
+        write_sanity_check(
+            plot_df=plot_df,
+            item_stats=item_stats,
+            exam_stats=exam_stats_size,
+            output_path=paths["sanity_txt"],
+            test_size=int(test_size),
+        )
+        written_data_paths.append(paths["sanity_txt"])
+
+        written_plot_paths.extend(save_plots(plot_df, test_size=int(test_size)))
+
+    combined_plot_df = pd.concat(all_plot_dfs, ignore_index=True)
+    combined_plot_df.to_csv(COMBINED_DATA_CSV, index=False, encoding="utf-8")
+    written_data_paths.append(COMBINED_DATA_CSV)
 
     print("Saved:")
     for path in written_plot_paths:
         print(f"  {path.resolve()}")
-    print(f"  {DATA_CSV.resolve()}")
-    print(f"  {SANITY_CHECK_TXT.resolve()}")
+    for path in written_data_paths:
+        print(f"  {path.resolve()}")
 
 
 if __name__ == "__main__":

@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 
 """
-Create Figure 4: Q10 exam-level metric sensitivity to grade-scale granularity.
+Create Figure 4: exam-level metric sensitivity to grade-scale granularity.
 
 Run from:
     VEX/results/
 
 Example:
-    python create_plot_4_q10_granularity.py
+    python create_plot_4_a_b_qwk_linear_qwk_distro.py
 
 Input:
     ../vex_metric/vex_test_env/4_dataframe/dataframe_env.parquet
 
 Scope:
-    Only test_size == 10.
+    One independent plot set per available test_size.
 
 Grade-scale construction:
     n_classes = 2..10
@@ -54,17 +54,18 @@ Metrics:
 
 Outputs:
     figures_plot_4/
+        figure_4_q5_...png/pdf
         figure_4_q10_absolute_el_acc_granularity.png/pdf
         figure_4_q10_absolute_el_qwk_granularity.png/pdf
         figure_4_q10_absolute_el_tau_granularity.png/pdf
-
         figure_4_q10_bologna_el_acc_granularity.png/pdf
         figure_4_q10_bologna_el_qwk_granularity.png/pdf
         figure_4_q10_bologna_el_tau_granularity.png/pdf
-
         figure_4_q10_granularity_data.csv
         figure_4_q10_granularity_per_exam.csv
         figure_4_q10_sanity_check.txt
+        figure_4_q15_...png/pdf
+        figure_4_q20_...png/pdf
 """
 
 from __future__ import annotations
@@ -80,7 +81,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.stats import kendalltau
 
 
 # =========================================================
@@ -139,7 +139,9 @@ MODEL_COLUMNS = list(cfg.MODEL_COLUMNS)
 # GRANULARITY CONFIG
 # =========================================================
 
-TARGET_TEST_SIZE = 10
+# None means: use all test sizes available in dataframe_env.parquet.
+# Set to e.g. [10] for a q10-only run.
+TARGET_TEST_SIZES: list[int] | None = None
 
 MIN_CLASSES = 2
 MAX_CLASSES = 10
@@ -154,31 +156,30 @@ SCALE_BOLOGNA = "bologna_distribution"
 SCALE_TYPES = [SCALE_ABSOLUTE, SCALE_BOLOGNA]
 
 
-# =========================================================
-# OUTPUT FILES
-# =========================================================
+COMBINED_SUMMARY_CSV = OUTPUT_DIR / "figure_4_granularity_data.csv"
+COMBINED_PER_EXAM_CSV = OUTPUT_DIR / "figure_4_granularity_per_exam.csv"
 
-FIGURE_ABS_ACC_PDF = OUTPUT_DIR / "figure_4_q10_absolute_el_acc_granularity.pdf"
-FIGURE_ABS_ACC_PNG = OUTPUT_DIR / "figure_4_q10_absolute_el_acc_granularity.png"
 
-FIGURE_ABS_QWK_PDF = OUTPUT_DIR / "figure_4_q10_absolute_el_qwk_granularity.pdf"
-FIGURE_ABS_QWK_PNG = OUTPUT_DIR / "figure_4_q10_absolute_el_qwk_granularity.png"
+def figure_4_paths(test_size: int) -> dict[str, Path]:
+    prefix = f"figure_4_q{test_size}"
 
-FIGURE_ABS_TAU_PDF = OUTPUT_DIR / "figure_4_q10_absolute_el_tau_granularity.pdf"
-FIGURE_ABS_TAU_PNG = OUTPUT_DIR / "figure_4_q10_absolute_el_tau_granularity.png"
-
-FIGURE_BOL_ACC_PDF = OUTPUT_DIR / "figure_4_q10_bologna_el_acc_granularity.pdf"
-FIGURE_BOL_ACC_PNG = OUTPUT_DIR / "figure_4_q10_bologna_el_acc_granularity.png"
-
-FIGURE_BOL_QWK_PDF = OUTPUT_DIR / "figure_4_q10_bologna_el_qwk_granularity.pdf"
-FIGURE_BOL_QWK_PNG = OUTPUT_DIR / "figure_4_q10_bologna_el_qwk_granularity.png"
-
-FIGURE_BOL_TAU_PDF = OUTPUT_DIR / "figure_4_q10_bologna_el_tau_granularity.pdf"
-FIGURE_BOL_TAU_PNG = OUTPUT_DIR / "figure_4_q10_bologna_el_tau_granularity.png"
-
-SUMMARY_CSV = OUTPUT_DIR / "figure_4_q10_granularity_data.csv"
-PER_EXAM_CSV = OUTPUT_DIR / "figure_4_q10_granularity_per_exam.csv"
-SANITY_CHECK_TXT = OUTPUT_DIR / "figure_4_q10_sanity_check.txt"
+    return {
+        "abs_acc_pdf": OUTPUT_DIR / f"{prefix}_absolute_el_acc_granularity.pdf",
+        "abs_acc_png": OUTPUT_DIR / f"{prefix}_absolute_el_acc_granularity.png",
+        "abs_qwk_pdf": OUTPUT_DIR / f"{prefix}_absolute_el_qwk_granularity.pdf",
+        "abs_qwk_png": OUTPUT_DIR / f"{prefix}_absolute_el_qwk_granularity.png",
+        "abs_tau_pdf": OUTPUT_DIR / f"{prefix}_absolute_el_tau_granularity.pdf",
+        "abs_tau_png": OUTPUT_DIR / f"{prefix}_absolute_el_tau_granularity.png",
+        "bol_acc_pdf": OUTPUT_DIR / f"{prefix}_bologna_el_acc_granularity.pdf",
+        "bol_acc_png": OUTPUT_DIR / f"{prefix}_bologna_el_acc_granularity.png",
+        "bol_qwk_pdf": OUTPUT_DIR / f"{prefix}_bologna_el_qwk_granularity.pdf",
+        "bol_qwk_png": OUTPUT_DIR / f"{prefix}_bologna_el_qwk_granularity.png",
+        "bol_tau_pdf": OUTPUT_DIR / f"{prefix}_bologna_el_tau_granularity.pdf",
+        "bol_tau_png": OUTPUT_DIR / f"{prefix}_bologna_el_tau_granularity.png",
+        "summary_csv": OUTPUT_DIR / f"{prefix}_granularity_data.csv",
+        "per_exam_csv": OUTPUT_DIR / f"{prefix}_granularity_per_exam.csv",
+        "sanity_txt": OUTPUT_DIR / f"{prefix}_sanity_check.txt",
+    }
 
 
 # =========================================================
@@ -407,8 +408,8 @@ def tau_b_safe(
 ) -> float:
     valid_mask = np.isfinite(y_true) & np.isfinite(y_pred)
 
-    y_true = y_true[valid_mask].astype(float)
-    y_pred = y_pred[valid_mask].astype(float)
+    y_true = y_true[valid_mask].astype(int)
+    y_pred = y_pred[valid_mask].astype(int)
 
     if len(y_true) < 2 or len(y_true) != len(y_pred):
         return np.nan
@@ -416,11 +417,52 @@ def tau_b_safe(
     if len(np.unique(y_true)) <= 1 or len(np.unique(y_pred)) <= 1:
         return np.nan
 
-    try:
-        tau, _ = kendalltau(y_true, y_pred)
-        return float(tau) if pd.notna(tau) else np.nan
-    except Exception:
+    n_classes = int(max(y_true.max(), y_pred.max()) + 1)
+
+    contingency = np.zeros((n_classes, n_classes), dtype=np.int64)
+
+    for true_value, pred_value in zip(y_true, y_pred, strict=False):
+        if 0 <= true_value < n_classes and 0 <= pred_value < n_classes:
+            contingency[true_value, pred_value] += 1
+
+    concordant = 0
+    discordant = 0
+
+    for true_idx in range(n_classes):
+        for pred_idx in range(n_classes):
+            count = int(contingency[true_idx, pred_idx])
+
+            if count == 0:
+                continue
+
+            concordant += count * int(
+                contingency[:true_idx, :pred_idx].sum()
+                + contingency[true_idx + 1 :, pred_idx + 1 :].sum()
+            )
+            discordant += count * int(
+                contingency[:true_idx, pred_idx + 1 :].sum()
+                + contingency[true_idx + 1 :, :pred_idx].sum()
+            )
+
+    concordant //= 2
+    discordant //= 2
+
+    def pair_count(values: np.ndarray) -> int:
+        values = values.astype(np.int64)
+        return int(np.sum(values * (values - 1) // 2))
+
+    tied_true = pair_count(contingency.sum(axis=1)) - pair_count(contingency.ravel())
+    tied_pred = pair_count(contingency.sum(axis=0)) - pair_count(contingency.ravel())
+
+    denominator = np.sqrt(
+        float(concordant + discordant + tied_true)
+        * float(concordant + discordant + tied_pred)
+    )
+
+    if denominator == 0:
         return np.nan
+
+    return float((concordant - discordant) / denominator)
 
 
 # =========================================================
@@ -750,9 +792,6 @@ def compute_granularity_metrics_for_model(
     for (test_id, test_size), exam_df in grouped:
         test_size_int = int(test_size)
 
-        if test_size_int != TARGET_TEST_SIZE:
-            continue
-
         gold_norm = exam_df["gold_norm"].to_numpy(dtype=float)
         pred_norm = exam_df["pred_norm"].to_numpy(dtype=float)
 
@@ -806,13 +845,16 @@ def compute_granularity_metrics_for_model(
     return rows
 
 
-def compute_granularity_metrics(df_env: pd.DataFrame) -> pd.DataFrame:
+def compute_granularity_metrics(
+    df_env: pd.DataFrame,
+    test_size: int,
+) -> pd.DataFrame:
     base_totals = build_base_student_totals(df_env)
     all_rows: list[dict[str, Any]] = []
 
     for model_col in MODEL_COLUMNS:
         print(
-            f"  computing q{TARGET_TEST_SIZE} granularity metrics for "
+            f"  computing q{test_size} granularity metrics for "
             f"{display_name(model_col)}"
         )
         all_rows.extend(
@@ -853,6 +895,7 @@ def summarize_metrics(per_exam_df: pd.DataFrame) -> pd.DataFrame:
                 MODEL_COL,
                 "model",
                 "family",
+                TEST_SIZE_COL,
                 "scale_type",
                 "n_classes",
                 "n_passing_classes",
@@ -912,7 +955,7 @@ def summarize_metrics(per_exam_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     summary = summary.sort_values(
-        ["scale_type", "model_order", "n_classes"]
+        [TEST_SIZE_COL, "scale_type", "model_order", "n_classes"]
     ).reset_index(drop=True)
 
     return summary
@@ -924,22 +967,24 @@ def summarize_metrics(per_exam_df: pd.DataFrame) -> pd.DataFrame:
 
 def write_sanity_check(
     raw_df: pd.DataFrame,
-    q10_df: pd.DataFrame,
+    q_df: pd.DataFrame,
     per_exam_df: pd.DataFrame,
     summary: pd.DataFrame,
+    test_size: int,
+    output_path: Path,
 ) -> None:
     lines: list[str] = []
 
     lines.append("=" * 100)
-    lines.append("FIGURE 4 Q10 SANITY CHECK")
+    lines.append(f"FIGURE 4 Q{test_size} SANITY CHECK")
     lines.append("=" * 100)
     lines.append(f"Script dir:            {SCRIPT_DIR}")
     lines.append(f"VEX metric dir:        {VEX_METRIC_DIR}")
     lines.append(f"Input parquet:         {INPUT_PARQUET}")
     lines.append(f"Output dir:            {OUTPUT_DIR}")
     lines.append(f"Raw env rows:          {len(raw_df)}")
-    lines.append(f"Q10 env rows:          {len(q10_df)}")
-    lines.append(f"Target test_size:      {TARGET_TEST_SIZE}")
+    lines.append(f"Q{test_size} env rows: {len(q_df)}")
+    lines.append(f"Target test_size:      {test_size}")
     lines.append(f"Pass threshold:        {PASS_THRESHOLD}")
     lines.append(f"Models:                {len(MODEL_COLUMNS)}")
     lines.append(f"Class counts:          {CLASS_COUNTS}")
@@ -980,10 +1025,10 @@ def write_sanity_check(
 
     lines.append(raw_counts.to_string(index=False))
     lines.append("")
-    lines.append("Q10 counts:")
+    lines.append(f"Q{test_size} counts:")
 
-    q10_counts = (
-        q10_df.groupby(TEST_SIZE_COL)
+    q_counts = (
+        q_df.groupby(TEST_SIZE_COL)
         .agg(
             rows=(TEST_ID_COL, "size"),
             virtual_exams=(TEST_ID_COL, "nunique"),
@@ -993,14 +1038,14 @@ def write_sanity_check(
         .reset_index()
     )
 
-    lines.append(q10_counts.to_string(index=False))
+    lines.append(q_counts.to_string(index=False))
     lines.append("")
     lines.append(f"Per-exam metric rows: {len(per_exam_df)}")
     lines.append("")
     lines.append("Expected per-exam metric rows:")
     expected_rows = (
         len(MODEL_COLUMNS)
-        * q10_df[[TEST_ID_COL, TEST_SIZE_COL]].drop_duplicates().shape[0]
+        * q_df[[TEST_ID_COL, TEST_SIZE_COL]].drop_duplicates().shape[0]
         * len(CLASS_COUNTS)
         * len(SCALE_TYPES)
     )
@@ -1009,7 +1054,7 @@ def write_sanity_check(
     lines.append("Summary:")
     lines.append(summary.to_string(index=False))
 
-    SANITY_CHECK_TXT.write_text("\n".join(lines), encoding="utf-8")
+    output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 # =========================================================
@@ -1114,15 +1159,17 @@ def save_single_metric_plot(
     plt.close(fig)
 
 
-def save_plots(summary: pd.DataFrame) -> None:
+def save_plots(summary: pd.DataFrame, test_size: int) -> list[Path]:
+    paths = figure_4_paths(test_size)
+
     save_single_metric_plot(
         summary=summary,
         scale_type=SCALE_ABSOLUTE,
         metric_mean_col="el_acc_mean",
         y_label="Mean exam-level accuracy",
-        title=f"Q{TARGET_TEST_SIZE} Absolute EL-Acc vs. Grade-Scale Granularity",
-        output_pdf=FIGURE_ABS_ACC_PDF,
-        output_png=FIGURE_ABS_ACC_PNG,
+        title=f"Q{test_size} Absolute EL-Acc vs. Grade-Scale Granularity",
+        output_pdf=paths["abs_acc_pdf"],
+        output_png=paths["abs_acc_png"],
     )
 
     save_single_metric_plot(
@@ -1130,9 +1177,9 @@ def save_plots(summary: pd.DataFrame) -> None:
         scale_type=SCALE_ABSOLUTE,
         metric_mean_col="el_qwk_mean",
         y_label="Mean exam-level QWK",
-        title=f"Q{TARGET_TEST_SIZE} Absolute EL-QWK vs. Grade-Scale Granularity",
-        output_pdf=FIGURE_ABS_QWK_PDF,
-        output_png=FIGURE_ABS_QWK_PNG,
+        title=f"Q{test_size} Absolute EL-QWK vs. Grade-Scale Granularity",
+        output_pdf=paths["abs_qwk_pdf"],
+        output_png=paths["abs_qwk_png"],
     )
 
     save_single_metric_plot(
@@ -1140,9 +1187,9 @@ def save_plots(summary: pd.DataFrame) -> None:
         scale_type=SCALE_ABSOLUTE,
         metric_mean_col="el_tau_mean",
         y_label=r"Mean exam-level $\tau_b$",
-        title=rf"Q{TARGET_TEST_SIZE} Absolute EL-$\tau_b$ vs. Grade-Scale Granularity",
-        output_pdf=FIGURE_ABS_TAU_PDF,
-        output_png=FIGURE_ABS_TAU_PNG,
+        title=rf"Q{test_size} Absolute EL-$\tau_b$ vs. Grade-Scale Granularity",
+        output_pdf=paths["abs_tau_pdf"],
+        output_png=paths["abs_tau_png"],
     )
 
     save_single_metric_plot(
@@ -1150,9 +1197,9 @@ def save_plots(summary: pd.DataFrame) -> None:
         scale_type=SCALE_BOLOGNA,
         metric_mean_col="el_acc_mean",
         y_label="Mean exam-level accuracy",
-        title=f"Q{TARGET_TEST_SIZE} Bologna EL-Acc vs. Grade-Scale Granularity",
-        output_pdf=FIGURE_BOL_ACC_PDF,
-        output_png=FIGURE_BOL_ACC_PNG,
+        title=f"Q{test_size} Bologna EL-Acc vs. Grade-Scale Granularity",
+        output_pdf=paths["bol_acc_pdf"],
+        output_png=paths["bol_acc_png"],
     )
 
     save_single_metric_plot(
@@ -1160,9 +1207,9 @@ def save_plots(summary: pd.DataFrame) -> None:
         scale_type=SCALE_BOLOGNA,
         metric_mean_col="el_qwk_mean",
         y_label="Mean exam-level QWK",
-        title=f"Q{TARGET_TEST_SIZE} Bologna EL-QWK vs. Grade-Scale Granularity",
-        output_pdf=FIGURE_BOL_QWK_PDF,
-        output_png=FIGURE_BOL_QWK_PNG,
+        title=f"Q{test_size} Bologna EL-QWK vs. Grade-Scale Granularity",
+        output_pdf=paths["bol_qwk_pdf"],
+        output_png=paths["bol_qwk_png"],
     )
 
     save_single_metric_plot(
@@ -1170,10 +1217,25 @@ def save_plots(summary: pd.DataFrame) -> None:
         scale_type=SCALE_BOLOGNA,
         metric_mean_col="el_tau_mean",
         y_label=r"Mean exam-level $\tau_b$",
-        title=rf"Q{TARGET_TEST_SIZE} Bologna EL-$\tau_b$ vs. Grade-Scale Granularity",
-        output_pdf=FIGURE_BOL_TAU_PDF,
-        output_png=FIGURE_BOL_TAU_PNG,
+        title=rf"Q{test_size} Bologna EL-$\tau_b$ vs. Grade-Scale Granularity",
+        output_pdf=paths["bol_tau_pdf"],
+        output_png=paths["bol_tau_png"],
     )
+
+    return [
+        paths["abs_acc_pdf"],
+        paths["abs_acc_png"],
+        paths["abs_qwk_pdf"],
+        paths["abs_qwk_png"],
+        paths["abs_tau_pdf"],
+        paths["abs_tau_png"],
+        paths["bol_acc_pdf"],
+        paths["bol_acc_png"],
+        paths["bol_qwk_pdf"],
+        paths["bol_qwk_png"],
+        paths["bol_tau_pdf"],
+        paths["bol_tau_png"],
+    ]
 
 
 # =========================================================
@@ -1184,13 +1246,12 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 100)
-    print("CREATE Q10 GRANULARITY PLOTS")
+    print("CREATE GRANULARITY PLOTS")
     print("=" * 100)
     print(f"Script dir:            {SCRIPT_DIR}")
     print(f"VEX metric dir:        {VEX_METRIC_DIR}")
     print(f"Input parquet:         {INPUT_PARQUET}")
     print(f"Output folder:         {OUTPUT_DIR}")
-    print(f"Target test_size:      {TARGET_TEST_SIZE}")
     print(f"Pass threshold:        {PASS_THRESHOLD}")
     print(f"Class counts:          {CLASS_COUNTS}")
     print(f"Scale types:           {SCALE_TYPES}")
@@ -1201,62 +1262,111 @@ def main() -> None:
     validate_input(raw_df)
     assert_no_duplicate_exam_student_question_pairs(raw_df)
 
-    q10_df = raw_df[
-        pd.to_numeric(raw_df[TEST_SIZE_COL], errors="coerce") == TARGET_TEST_SIZE
-    ].copy()
+    test_size_numeric = pd.to_numeric(raw_df[TEST_SIZE_COL], errors="coerce")
+    available_test_sizes = sorted(
+        int(value) for value in test_size_numeric.dropna().unique()
+    )
 
-    if q10_df.empty:
+    if TARGET_TEST_SIZES is None:
+        target_test_sizes = available_test_sizes
+    else:
+        requested_test_sizes = [int(value) for value in TARGET_TEST_SIZES]
+        target_test_sizes = [
+            value for value in requested_test_sizes if value in available_test_sizes
+        ]
+
+        missing_test_sizes = sorted(
+            set(requested_test_sizes).difference(available_test_sizes)
+        )
+        if missing_test_sizes:
+            print(
+                "Warning: requested test sizes not present in input: "
+                f"{missing_test_sizes}"
+            )
+
+    if not target_test_sizes:
         raise RuntimeError(
-            f"No rows found for test_size == {TARGET_TEST_SIZE} in {INPUT_PARQUET}"
+            f"No target test sizes found in {INPUT_PARQUET}. "
+            f"Available values: {available_test_sizes}"
         )
 
     print(f"Raw rows: {len(raw_df)}")
-    print(f"Q{TARGET_TEST_SIZE} rows: {len(q10_df)}")
+    print(f"Available test sizes: {available_test_sizes}")
+    print(f"Target test sizes:    {target_test_sizes}")
     print("")
 
-    if PER_EXAM_CSV.exists() and not RECOMPUTE_PER_EXAM_METRICS:
-        print(f"Loading cached per-exam metrics: {PER_EXAM_CSV}")
-        per_exam_df = pd.read_csv(PER_EXAM_CSV)
-    else:
-        print("Computing per-exam granularity metrics...")
-        per_exam_df = compute_granularity_metrics(q10_df)
-        per_exam_df.to_csv(PER_EXAM_CSV, index=False, encoding="utf-8")
+    all_per_exam: list[pd.DataFrame] = []
+    all_summary: list[pd.DataFrame] = []
+    written_paths: list[Path] = []
 
-    if per_exam_df.empty:
-        raise RuntimeError("No per-exam metric rows were computed.")
+    for test_size in target_test_sizes:
+        paths = figure_4_paths(test_size)
 
-    summary = summarize_metrics(per_exam_df)
+        q_df = raw_df[test_size_numeric == test_size].copy()
 
-    summary.to_csv(SUMMARY_CSV, index=False, encoding="utf-8")
+        if q_df.empty:
+            print(f"Skipping q{test_size}: no rows found.")
+            continue
 
-    write_sanity_check(
-        raw_df=raw_df,
-        q10_df=q10_df,
-        per_exam_df=per_exam_df,
-        summary=summary,
-    )
+        print("-" * 100)
+        print(f"Q{test_size}")
+        print("-" * 100)
+        print(f"Rows: {len(q_df)}")
 
-    save_plots(summary=summary)
+        if paths["per_exam_csv"].exists() and not RECOMPUTE_PER_EXAM_METRICS:
+            print(f"Loading cached per-exam metrics: {paths['per_exam_csv']}")
+            per_exam_df = pd.read_csv(paths["per_exam_csv"])
+        else:
+            print("Computing per-exam granularity metrics...")
+            per_exam_df = compute_granularity_metrics(q_df, test_size)
+            per_exam_df.to_csv(
+                paths["per_exam_csv"],
+                index=False,
+                encoding="utf-8",
+            )
+
+        if per_exam_df.empty:
+            raise RuntimeError(f"No per-exam metric rows were computed for q{test_size}.")
+
+        summary = summarize_metrics(per_exam_df)
+
+        summary.to_csv(paths["summary_csv"], index=False, encoding="utf-8")
+
+        write_sanity_check(
+            raw_df=raw_df,
+            q_df=q_df,
+            per_exam_df=per_exam_df,
+            summary=summary,
+            test_size=test_size,
+            output_path=paths["sanity_txt"],
+        )
+
+        written_paths.extend(save_plots(summary=summary, test_size=test_size))
+        written_paths.extend(
+            [
+                paths["summary_csv"],
+                paths["per_exam_csv"],
+                paths["sanity_txt"],
+            ]
+        )
+
+        all_per_exam.append(per_exam_df)
+        all_summary.append(summary)
+
+    if not all_per_exam or not all_summary:
+        raise RuntimeError("No plot data was generated.")
+
+    combined_per_exam = pd.concat(all_per_exam, ignore_index=True)
+    combined_summary = pd.concat(all_summary, ignore_index=True)
+
+    combined_per_exam.to_csv(COMBINED_PER_EXAM_CSV, index=False, encoding="utf-8")
+    combined_summary.to_csv(COMBINED_SUMMARY_CSV, index=False, encoding="utf-8")
+
+    written_paths.extend([COMBINED_SUMMARY_CSV, COMBINED_PER_EXAM_CSV])
 
     print("")
     print("Saved files:")
-    for path in [
-        FIGURE_ABS_ACC_PDF,
-        FIGURE_ABS_ACC_PNG,
-        FIGURE_ABS_QWK_PDF,
-        FIGURE_ABS_QWK_PNG,
-        FIGURE_ABS_TAU_PDF,
-        FIGURE_ABS_TAU_PNG,
-        FIGURE_BOL_ACC_PDF,
-        FIGURE_BOL_ACC_PNG,
-        FIGURE_BOL_QWK_PDF,
-        FIGURE_BOL_QWK_PNG,
-        FIGURE_BOL_TAU_PDF,
-        FIGURE_BOL_TAU_PNG,
-        SUMMARY_CSV,
-        PER_EXAM_CSV,
-        SANITY_CHECK_TXT,
-    ]:
+    for path in written_paths:
         print(f"  {path}")
 
     print("")

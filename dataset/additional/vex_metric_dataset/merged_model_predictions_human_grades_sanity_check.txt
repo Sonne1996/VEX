@@ -1,0 +1,37 @@
+====================================================================================================
+MERGED MODEL PREDICTIONS HUMAN GRADES SANITY CHECK
+====================================================================================================
+Audit parquet:       C:\Git\Bachelor\VEX\dataset\additional\audit_dataset\audit_dataset.parquet
+Predictions parquet: C:\Git\Bachelor\VEX\dataset\additional\vex_metric_dataset\merged_model_predictions.parquet
+Output parquet:      C:\Git\Bachelor\VEX\dataset\additional\vex_metric_dataset\merged_model_predictions.parquet
+Merge key:           answer_id
+
+Input rows:
+  audit_dataset:              3222
+  merged_model_predictions:   3222
+  output:                     3222
+
+Human-grade column mapping:
+  incorrect: 0.0
+  mostly incorrect: 0.25
+  partially correct: 0.5
+  mostly correct: 0.75
+  correct: 1.0
+
+Audit grade sanity check:
+  Check: grade == mapped(gold_label_after_human_audit)
+  Equal rows:                 3222
+  Mismatch rows:              0
+
+Mapped human-grade missing values in output:
+  human_grade_1: 0
+  human_grade_2: 0
+  human_expert_one_gold: 0
+  human_expert_two: 0
+
+VEX human-expert comparison columns:
+  human_expert_one_gold = mapped human_grade 1
+  human_expert_two = mapped human_grade 2
+  evaluate_dataframe.py treats human_expert_one_gold as fake gold only for model human_expert_two.
+
+No mismatches found.

@@ -36,6 +36,7 @@ from vex_config import (
     TEST_RUN_FOLDER,
     TEST_METRICS_FOLDER,
     TEST_METRICS_FILE,
+    WRITE_SCALE_SANITY_EXPORTS,
 )
 
 # =========================================================
@@ -89,6 +90,18 @@ HUMAN_GRADE_COL = "human_grade"
 
 # In original INPUT_PARQUET
 INPUT_HUMAN_GRADE_COL = "grade"
+
+HUMAN_ONE_GOLD = "human_expert_one_gold"
+HUMAND_TWO_MODEL = "human_expert_two"
+
+HUMAN_COMPARISON_MODEL_COLUMNS = [HUMAND_TWO_MODEL]
+EVALUATION_MODEL_COLUMNS = list(MODEL_COLUMNS) + HUMAN_COMPARISON_MODEL_COLUMNS
+
+
+def _reference_col_for_model(model_col: str) -> str:
+    if model_col in HUMAN_COMPARISON_MODEL_COLUMNS:
+        return HUMAN_ONE_GOLD
+    return HUMAN_GRADE_COL
 
 
 # =========================================================
@@ -218,7 +231,7 @@ def _validate_env_df(df: pd.DataFrame) -> None:
             f"Pflichtspalten fehlen im dataframe_env.parquet: {missing}"
         )
 
-    missing_models = [col for col in MODEL_COLUMNS if col not in df.columns]
+    missing_models = [col for col in EVALUATION_MODEL_COLUMNS if col not in df.columns]
     if missing_models:
         raise ValueError(
             f"Folgende Modelspalten fehlen im dataframe_env.parquet: {missing_models}"
@@ -239,7 +252,7 @@ def _validate_original_item_df(df: pd.DataFrame) -> None:
             f"Pflichtspalten fehlen im originalen INPUT_PARQUET: {missing}"
         )
 
-    missing_models = [col for col in MODEL_COLUMNS if col not in df.columns]
+    missing_models = [col for col in EVALUATION_MODEL_COLUMNS if col not in df.columns]
     if missing_models:
         raise ValueError(
             f"Folgende Modelspalten fehlen im originalen INPUT_PARQUET: {missing_models}"
@@ -917,12 +930,18 @@ def _build_item_df_from_original_input() -> pd.DataFrame:
     df = pd.read_parquet(input_path)
     _validate_original_item_df(df)
 
-    keep_cols = [
-        ANSWER_ID_COL,
-        QUESTION_ID_COL,
-        STUDENT_ID_COL,
-        INPUT_HUMAN_GRADE_COL,
-    ] + MODEL_COLUMNS
+    keep_cols = list(
+        dict.fromkeys(
+            [
+                ANSWER_ID_COL,
+                QUESTION_ID_COL,
+                STUDENT_ID_COL,
+                INPUT_HUMAN_GRADE_COL,
+                HUMAN_ONE_GOLD,
+            ]
+            + EVALUATION_MODEL_COLUMNS
+        )
+    )
 
     item_df = df[keep_cols].copy()
 
@@ -956,10 +975,12 @@ def _build_item_df_from_original_input() -> pd.DataFrame:
 # =========================================================
 
 def _evaluate_item_level(df_items: pd.DataFrame, model_col: str) -> dict[str, float]:
-    subset = df_items[[HUMAN_GRADE_COL, model_col]].copy()
+    reference_col = _reference_col_for_model(model_col)
 
-    subset[HUMAN_GRADE_COL] = pd.to_numeric(
-        subset[HUMAN_GRADE_COL],
+    subset = df_items[[reference_col, model_col]].copy()
+
+    subset[reference_col] = pd.to_numeric(
+        subset[reference_col],
         errors="coerce",
     )
     subset[model_col] = pd.to_numeric(
@@ -972,7 +993,7 @@ def _evaluate_item_level(df_items: pd.DataFrame, model_col: str) -> dict[str, fl
 
     subset = subset.dropna()
 
-    y_true = subset[HUMAN_GRADE_COL].to_numpy()
+    y_true = subset[reference_col].to_numpy()
     y_pred = subset[model_col].to_numpy()
 
     return {
@@ -982,6 +1003,7 @@ def _evaluate_item_level(df_items: pd.DataFrame, model_col: str) -> dict[str, fl
         "item_mae": _mae_safe(y_true, y_pred),
         "item_mse": _mse_safe(y_true, y_pred),
         "item_rmse": _rmse_safe(y_true, y_pred),
+        "item_tau_b": _kendall_tau_b_safe(y_true, y_pred),
         "item_qwk": _qwk_safe(y_true, y_pred),
     }
 
@@ -989,9 +1011,9 @@ def _evaluate_item_level(df_items: pd.DataFrame, model_col: str) -> dict[str, fl
 def _precompute_item_metrics(df_items: pd.DataFrame) -> dict[str, dict[str, float]]:
     result: dict[str, dict[str, float]] = {}
 
-    iterator = MODEL_COLUMNS
+    iterator = EVALUATION_MODEL_COLUMNS
     if SHOW_PROGRESS:
-        iterator = tqdm(MODEL_COLUMNS, desc="Item-level metrics", unit="model")
+        iterator = tqdm(EVALUATION_MODEL_COLUMNS, desc="Item-level metrics", unit="model")
 
     for model_col in iterator:
         result[model_col] = _evaluate_item_level(df_items, model_col)
@@ -1015,12 +1037,14 @@ def _student_totals_for_exam(
     A student is retained only if they have exactly test_size valid human scores
     and exactly test_size valid model predictions.
     """
+    reference_col = _reference_col_for_model(model_col)
+
     exam_subset = exam_df[
-        [STUDENT_ID_COL, QUESTION_ID_COL, ANSWER_ID_COL, HUMAN_GRADE_COL, model_col]
+        [STUDENT_ID_COL, QUESTION_ID_COL, ANSWER_ID_COL, reference_col, model_col]
     ].copy()
 
-    exam_subset[HUMAN_GRADE_COL] = pd.to_numeric(
-        exam_subset[HUMAN_GRADE_COL],
+    exam_subset[reference_col] = pd.to_numeric(
+        exam_subset[reference_col],
         errors="coerce",
     )
     exam_subset[model_col] = pd.to_numeric(
@@ -1054,9 +1078,9 @@ def _student_totals_for_exam(
         .agg(
             n_rows=(QUESTION_ID_COL, "size"),
             n_questions=(QUESTION_ID_COL, "nunique"),
-            human_valid=(HUMAN_GRADE_COL, lambda s: int(s.notna().sum())),
+            human_valid=(reference_col, lambda s: int(s.notna().sum())),
             pred_valid=(model_col, lambda s: int(s.notna().sum())),
-            gold_total=(HUMAN_GRADE_COL, "sum"),
+            gold_total=(reference_col, "sum"),
             pred_total=(model_col, "sum"),
         )
         .reset_index()
@@ -1259,7 +1283,7 @@ def _evaluate_single_exam_all_models(task: tuple[Any, int, pd.DataFrame]) -> lis
 
     rows: list[dict[str, Any]] = []
 
-    for model_col in MODEL_COLUMNS:
+    for model_col in EVALUATION_MODEL_COLUMNS:
         row = _evaluate_single_exam_for_model(
             exam_df=exam_df,
             model_col=model_col,
@@ -1331,6 +1355,13 @@ def _precompute_exam_results(df_env: pd.DataFrame) -> pd.DataFrame:
         result_df[TEST_SIZE_COL],
         errors="coerce",
     ).astype("Int64")
+
+    # Keep the output deterministic even when ProcessPoolExecutor finishes
+    # virtual exam tasks in a different order across runs.
+    result_df = result_df.sort_values(
+        by=[TEST_SIZE_COL, TEST_ID_COL, "model_col"],
+        kind="mergesort",
+    ).reset_index(drop=True)
 
     return result_df
 
@@ -1644,7 +1675,7 @@ def _build_report_section(
     lines.append(f"Eval workers: {EVAL_WORKERS}")
     lines.append("")
 
-    for model_col in MODEL_COLUMNS:
+    for model_col in EVALUATION_MODEL_COLUMNS:
         item_metrics = item_metrics_by_model[model_col]
         exam_metrics = _aggregate_exam_metrics(exam_results_scope_df, model_col)
 
@@ -1658,6 +1689,7 @@ def _build_report_section(
         lines.append(f"Item-level MAE:                {_format_metric(item_metrics['item_mae'])}")
         lines.append(f"Item-level MSE:                {_format_metric(item_metrics['item_mse'])}")
         lines.append(f"Item-level RMSE:               {_format_metric(item_metrics['item_rmse'])}")
+        lines.append(f"Item-level tau_b:              {_format_metric(item_metrics['item_tau_b'])}")
         lines.append(f"Item-level QWK:                {_format_metric(item_metrics['item_qwk'])}")
         lines.append("")
 
@@ -1961,10 +1993,11 @@ def main() -> None:
     for label, path in exam_metric_paths.items():
         print(f"  {label}: {path.resolve()}")
 
-    print("")
-    print("Writing linear/Bologna sanity-check exports...")
-    scale_export_count = _write_all_scale_exports(df_env)
-    print(f"Scale sanity-check exports written for {scale_export_count} exam instances.")
+    if WRITE_SCALE_SANITY_EXPORTS:
+        print("")
+        print("Writing linear/Bologna sanity-check exports...")
+        scale_export_count = _write_all_scale_exports(df_env)
+        print(f"Scale sanity-check exports written for {scale_export_count} exam instances.")
 
     # -----------------------------------------------------
     # 1) Global report over the complete synthetic exam env

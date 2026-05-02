@@ -35,7 +35,8 @@ import vex_config as cfg
 # CONFIG
 # =========================================================
 
-TEST_SIZE = 20
+#5, 10, 15, 20 or 21
+TEST_SIZES = [10]
 
 # For debugging: 100 or 1_000
 # For final reporting: 5_000 or 10_000
@@ -43,7 +44,7 @@ N_PERMUTATIONS = 10_000
 
 RANDOM_SEED = 4242
 
-OUTPUT_DIR = SCRIPT_PATH.parent / f"statistical_significance_q{TEST_SIZE}"
+OUTPUT_DIR = ""
 
 # Metric used only for displaying the main ranking table.
 # Significance tests select their own best model per metric.
@@ -92,7 +93,85 @@ QUESTION_ID_COL = "question_id"
 ANSWER_ID_COL = "answer_id"
 HUMAN_GRADE_COL = "human_grade"
 
-EXCLUDE_TFIDF = False
+EXCLUDE_MODELS_COLUMN_PRIOR = [
+    # joint LLM
+    "new_grade_deepseek/deepseek-v3.2-thinking",
+    "new_grade_deepseek/deepseek-v3.2",
+    "new_grade_google/gemini-2.5-pro",
+    "new_grade_anthropic/claude-sonnet-4.6",
+    "new_grade_openai/gpt-5.4",
+    "new_grade_llama32_3b_base",
+    "new_grade_gemma_e4_base",
+    "new_grade_llama32_3b_ft",
+    "new_grade_gemma_e4_ft",
+
+    # Transformer
+    "grade_bert_ft",
+    "grade_mdeberta_ft",
+
+    # TFIDF
+    "pred_tfidf_v5_answer_char_3_5",
+    "pred_tfidf_v1_answer_word_unigram",
+    "pred_tfidf_v4_question_and_answer_separate",
+]
+
+EXCLUDE_MODELS_COLUMN_ENCODER = [
+    # joint LLM
+    "new_grade_deepseek/deepseek-v3.2-thinking",
+    "new_grade_deepseek/deepseek-v3.2",
+    "new_grade_google/gemini-2.5-pro",
+    "new_grade_anthropic/claude-sonnet-4.6",
+    "new_grade_openai/gpt-5.4",
+    "new_grade_llama32_3b_base",
+    "new_grade_gemma_e4_base",
+    "new_grade_llama32_3b_ft",
+    "new_grade_gemma_e4_ft",
+
+    # Prior / Tempalte
+    "grade_prior_global",
+    "grade_prior_template_overlap",
+
+    # TFIDF
+    "pred_tfidf_v5_answer_char_3_5",
+    "pred_tfidf_v1_answer_word_unigram",
+    "pred_tfidf_v4_question_and_answer_separate",
+]
+
+EXCLUDE_MODELS_COLUMN_CLASSIC_ASAG = [
+    # joint LLM
+    "new_grade_deepseek/deepseek-v3.2-thinking",
+    "new_grade_deepseek/deepseek-v3.2",
+    "new_grade_google/gemini-2.5-pro",
+    "new_grade_anthropic/claude-sonnet-4.6",
+    "new_grade_openai/gpt-5.4",
+    "new_grade_llama32_3b_base",
+    "new_grade_gemma_e4_base",
+    "new_grade_llama32_3b_ft",
+    "new_grade_gemma_e4_ft",
+
+    # Transformer
+    "grade_bert_ft",
+    "grade_mdeberta_ft",
+
+    # Prior / Tempalte
+    "grade_prior_global",
+    "grade_prior_template_overlap",
+]
+
+EXCLUDE_MODELS_COLUMN_JOINT = [
+    # Transformer
+    "grade_bert_ft",
+    "grade_mdeberta_ft",
+
+    # Prior / Tempalte
+    "grade_prior_global",
+    "grade_prior_template_overlap",
+
+    # TFIDF
+    "pred_tfidf_v5_answer_char_3_5",
+    "pred_tfidf_v1_answer_word_unigram",
+    "pred_tfidf_v4_question_and_answer_separate",
+]
 
 ScaleName = Literal["linear_abs", "bologna"]
 
@@ -101,25 +180,39 @@ ScaleName = Literal["linear_abs", "bologna"]
 # MODEL HELPERS
 # =========================================================
 
-# Collects all model prediction columns that should be evaluated.
-#
-# The function starts from cfg.MODEL_COLUMNS and removes:
-#   - optionally TF-IDF baselines if EXCLUDE_TFIDF=True
-#
-# The returned list defines exactly which model columns enter the ranking,
-# exam-level label construction, and significance tests.
-def get_eval_model_columns() -> list[str]:
-    model_cols: list[str] = []
+def get_eval_model_columns(exclude_models: list[str]) -> list[str]:
+    """
+    Returns all model prediction columns from cfg.MODEL_COLUMNS except the
+    columns listed in exclude_models.
 
-    for col in cfg.MODEL_COLUMNS:
+    Parameters
+    ----------
+    exclude_models:
+        One of the EXCLUDE_MODELS_COLUMN_* lists.
 
-        if EXCLUDE_TFIDF and col.startswith("pred_tfidf_"):
-            continue
+    Returns
+    -------
+    list[str]
+        Model columns that remain after filtering.
+    """
+    exclude_set = set(exclude_models)
 
-        model_cols.append(col)
+    model_cols = [
+        col for col in cfg.MODEL_COLUMNS
+        if col not in exclude_set
+    ]
 
     if not model_cols:
-        raise ValueError("No model columns left after filtering.")
+        raise ValueError(
+            "No model columns left after filtering. "
+            "Check cfg.MODEL_COLUMNS and the selected EXCLUDE_MODELS_COLUMN_* list."
+        )
+
+    missing_excluded_cols = sorted(exclude_set - set(cfg.MODEL_COLUMNS))
+    if missing_excluded_cols:
+        print("Warning: These excluded columns are not in cfg.MODEL_COLUMNS:")
+        for col in missing_excluded_cols:
+            print(f"  - {col}")
 
     return model_cols
 
@@ -1852,6 +1945,7 @@ def run_sanity_checks(
     labels: pd.DataFrame,
     ranking: pd.DataFrame,
     model_cols: list[str],
+    test_size: int
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
 
@@ -1875,12 +1969,12 @@ def run_sanity_checks(
         )
 
     def check_env_test_size_exists() -> dict[str, Any]:
-        n_rows = int((df_env[TEST_SIZE_COL].astype(int) == int(TEST_SIZE)).sum())
+        n_rows = int((df_env[TEST_SIZE_COL].astype(int) == int(test_size)).sum())
         return make_sanity_row(
             check_name="env_contains_requested_test_size",
             passed=n_rows > 0,
             severity="critical",
-            details=f"Rows with test_size={TEST_SIZE}: {n_rows}",
+            details=f"Rows with test_size={test_size}: {n_rows}",
         )
 
     def check_labels_not_empty() -> dict[str, Any]:
@@ -1971,10 +2065,10 @@ def run_sanity_checks(
 
     def check_complete_exam_counts() -> dict[str, Any]:
         bad = labels[
-            (labels["n_rows"].astype(int) != int(TEST_SIZE))
-            | (labels["n_questions"].astype(int) != int(TEST_SIZE))
-            | (labels["human_valid"].astype(int) != int(TEST_SIZE))
-            | (labels["pred_valid"].astype(int) != int(TEST_SIZE))
+            (labels["n_rows"].astype(int) != int(test_size))
+            | (labels["n_questions"].astype(int) != int(test_size))
+            | (labels["human_valid"].astype(int) != int(test_size))
+            | (labels["pred_valid"].astype(int) != int(test_size))
         ]
 
         return make_sanity_row(
@@ -2210,11 +2304,12 @@ def run_sanity_checks(
 def write_sanity_report(
     sanity_df: pd.DataFrame,
     output_path: Path,
+    test_size: int
 ) -> None:
     lines: list[str] = []
 
     lines.append("=" * 100)
-    lines.append(f"VEX SANITY CHECK REPORT - Q{TEST_SIZE}")
+    lines.append(f"VEX SANITY CHECK REPORT - Q{test_size}")
     lines.append("=" * 100)
     lines.append("")
 
@@ -2328,15 +2423,16 @@ def write_text_report(
     permutation_df: pd.DataFrame,
     sanity_df: pd.DataFrame,
     output_path: Path,
+    test_size: int
 ) -> None:
     lines: list[str] = []
 
     lines.append("=" * 100)
-    lines.append(f"VEX STATISTICAL SIGNIFICANCE - Q{TEST_SIZE}")
+    lines.append(f"VEX STATISTICAL SIGNIFICANCE - Q{test_size}")
     lines.append("=" * 100)
     lines.append("")
     lines.append(f"input_path={input_env_path().resolve()}")
-    lines.append(f"test_size={TEST_SIZE}")
+    lines.append(f"test_size={test_size}")
     lines.append(f"display_ranking_metric={DISPLAY_RANKING_METRIC}")
     lines.append("best_model_selection=metric_specific")
     lines.append(f"n_permutations={N_PERMUTATIONS}")
@@ -2502,7 +2598,7 @@ def write_text_report(
 #  13. Write sanity and final text reports.
 #  14. Stop if critical sanity checks failed.
 #  15. Print all output paths.
-def main() -> int:
+def main(excluded_model, test_size, model_cat) -> int:
     env_path = input_env_path()
 
     if not env_path.exists():
@@ -2510,7 +2606,9 @@ def main() -> int:
             f"dataframe_env.parquet not found: {env_path.resolve()}"
         )
 
-    model_cols = get_eval_model_columns()
+    OUTPUT_DIR = SCRIPT_PATH.parent / f"statistical_significance_q{test_size}_{model_cat}"
+
+    model_cols = get_eval_model_columns(excluded_model)
 
     n_comparisons = max(0, len(model_cols) - 1)
     n_significance_jobs = len(SIGNIFICANCE_TASKS) * n_comparisons
@@ -2523,7 +2621,8 @@ def main() -> int:
     resolved_n_jobs = resolve_n_jobs(n_significance_jobs)
 
     print("=" * 100)
-    print(f"VEX STATISTICAL SIGNIFICANCE - Q{TEST_SIZE}")
+    print(f"VEX STATISTICAL SIGNIFICANCE - Q{test_size}")
+    print(f"Model Categorie: {model_cat}")
     print("=" * 100)
     print(f"Input:       {env_path.resolve()}")
     print(f"Output dir:  {OUTPUT_DIR.resolve()}")
@@ -2550,20 +2649,20 @@ def main() -> int:
     labels = build_exam_level_labels(
         df_env=df_env,
         model_cols=model_cols,
-        test_size=TEST_SIZE,
+        test_size=test_size,
     )
 
-    labels_path = OUTPUT_DIR / f"q{TEST_SIZE}_exam_level_significance_labels.parquet"
+    labels_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_exam_level_significance_labels.parquet"
     labels.to_parquet(labels_path, index=False)
 
     ranking = compute_model_ranking(labels)
 
     best_models_df = compute_best_models_by_significance_task(ranking)
 
-    best_models_path = OUTPUT_DIR / f"q{TEST_SIZE}_metric_specific_best_models.csv"
+    best_models_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_metric_specific_best_models.csv"
     best_models_df.to_csv(best_models_path, index=False)
 
-    ranking_path = OUTPUT_DIR / f"q{TEST_SIZE}_model_ranking_for_significance.csv"
+    ranking_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_model_ranking_for_significance.csv"
     ranking.to_csv(ranking_path, index=False)
 
     print("")
@@ -2604,8 +2703,8 @@ def main() -> int:
         ranking=ranking,
     )
 
-    mcnemar_path = OUTPUT_DIR / f"q{TEST_SIZE}_mcnemar_el_acc.csv"
-    permutation_path = OUTPUT_DIR / f"q{TEST_SIZE}_permutation_el_qwk.csv"
+    mcnemar_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_mcnemar_el_acc.csv"
+    permutation_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_permutation_el_qwk.csv"
 
     mcnemar_df.to_csv(mcnemar_path, index=False)
     permutation_df.to_csv(permutation_path, index=False)
@@ -2620,18 +2719,20 @@ def main() -> int:
         labels=labels,
         ranking=ranking,
         model_cols=model_cols,
+        test_size=test_size,
     )
 
-    sanity_path = OUTPUT_DIR / f"q{TEST_SIZE}_sanity_checks.csv"
-    sanity_report_path = OUTPUT_DIR / f"q{TEST_SIZE}_sanity_checks_report.txt"
+    sanity_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_sanity_checks.csv"
+    sanity_report_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_sanity_checks_report.txt"
 
     sanity_df.to_csv(sanity_path, index=False)
     write_sanity_report(
         sanity_df=sanity_df,
         output_path=sanity_report_path,
+        test_size=test_size,
     )
 
-    report_path = OUTPUT_DIR / f"q{TEST_SIZE}_statistical_significance_report.txt"
+    report_path = OUTPUT_DIR / f"q{test_size}_{model_cat}_statistical_significance_report.txt"
 
     write_text_report(
         ranking=ranking,
@@ -2640,8 +2741,8 @@ def main() -> int:
         permutation_df=permutation_df,
         sanity_df=sanity_df,
         output_path=report_path,
+        test_size=test_size,
     )
-
     print("")
     print("Sanity check summary:")
     print(
@@ -2674,4 +2775,23 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    model_cat = ""
+    for test_size in TEST_SIZES:
+        '''
+        model_cat = "PRIOR"
+        EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_PRIOR
+        main(EXCLUDE_MODELS, test_size, model_cat)
+
+        model_cat = "CLASSIC_ASAG"
+        EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_CLASSIC_ASAG
+        main(EXCLUDE_MODELS, test_size, model_cat)
+
+        model_cat = "ENCODER"
+        EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_ENCODER
+        main(EXCLUDE_MODELS, test_size, model_cat)
+        '''
+        model_cat = "JOINT"
+        EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_JOINT
+        main(EXCLUDE_MODELS, test_size, model_cat)
+        
+    sys.exit()

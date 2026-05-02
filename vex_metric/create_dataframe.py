@@ -37,6 +37,9 @@ BLOOM_COL = "bloom_level"
 TOPIC_COL = "question_topic"
 HUMAN_GRADE_COL = "grade"
 
+HUMAN_ONE_GOLD = "human_expert_one_gold"
+HUMAN_TWO_MODEL = "human_expert_two"
+
 # Optional
 NAME_COL = "name"
 
@@ -146,6 +149,8 @@ def _validate_input_columns(df: pd.DataFrame) -> None:
         BLOOM_COL,
         TOPIC_COL,
         HUMAN_GRADE_COL,
+        HUMAN_ONE_GOLD,
+        HUMAN_TWO_MODEL,
     ]
 
     missing_required = [col for col in required if col not in df.columns]
@@ -276,7 +281,13 @@ def build_grades_df(input_path: str | Path) -> pd.DataFrame:
     df = pd.read_parquet(input_path)
     _validate_input_columns(df)
 
-    keep_cols = [ANSWER_ID_COL, HUMAN_GRADE_COL] + MODEL_COLUMNS
+    keep_cols = [
+        ANSWER_ID_COL,
+        HUMAN_GRADE_COL,
+        HUMAN_ONE_GOLD,
+        HUMAN_TWO_MODEL,
+    ] + MODEL_COLUMNS
+
     df_grades = df[keep_cols].copy()
 
     df_grades[ANSWER_ID_COL] = _normalize_string_series(df_grades[ANSWER_ID_COL])
@@ -284,6 +295,7 @@ def build_grades_df(input_path: str | Path) -> pd.DataFrame:
     rename_map = {
         HUMAN_GRADE_COL: "human_grade",
     }
+
     df_grades = df_grades.rename(columns=rename_map)
 
     df_grades = df_grades.drop_duplicates(subset=[ANSWER_ID_COL]).copy()
@@ -337,6 +349,8 @@ def build_env_dataframe(
         "bloom",
         "topic",
         "human_grade",
+        HUMAN_ONE_GOLD,
+        HUMAN_TWO_MODEL,
     ]
 
     column_order.extend(MODEL_COLUMNS)
