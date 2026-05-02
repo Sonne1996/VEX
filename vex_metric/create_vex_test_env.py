@@ -125,7 +125,7 @@ def _linear_size_dir(run_idx: int, test_size: int) -> Path:
     )
 
 
-def _bologna_size_dir(run_idx: int, test_size: int) -> Path:
+def _distribution_size_dir(run_idx: int, test_size: int) -> Path:
     return (
         _run_dir(run_idx)
         / DISTRIBUTION_FOLDER
@@ -210,7 +210,6 @@ def _prepare_base_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     original_row_count = len(base)
 
-    # Normalize key columns.
     base[QUESTION_ID_COL] = _normalize_string_series(base[QUESTION_ID_COL])
     base[STUDENT_ID_COL] = _normalize_string_series(base[STUDENT_ID_COL])
     base[ANSWER_ID_COL] = _normalize_string_series(base[ANSWER_ID_COL])
@@ -316,6 +315,40 @@ def _eligible_students_for_sampled_questions(
     eligible = sorted(map(str, eligible))
 
     return eligible, duplicate_counts
+
+
+def _sample_questions_for_run_and_size(
+    question_ids: list[str],
+    run_idx: int,
+    test_size: int,
+) -> list[str]:
+    """
+    Deterministisches Sampling pro (run_idx, test_size).
+
+    Wichtig:
+    Dadurch ist z.B. TEST_SIZE=10 unabhängig davon, ob TEST_SIZES nur [10]
+    oder [5, 10, 15, 20, 21] enthält.
+
+    Ohne diesen Fix verbrauchen kleinere Testgrössen vorher RNG-State und
+    verschieben dadurch alle späteren Samples.
+    """
+    seed_sequence = np.random.SeedSequence(
+        [
+            int(RANDOM_SEED),
+            int(run_idx),
+            int(test_size),
+        ]
+    )
+
+    rng = np.random.default_rng(seed_sequence)
+
+    sampled_questions = rng.choice(
+        question_ids,
+        size=int(test_size),
+        replace=False,
+    )
+
+    return sorted(map(str, sampled_questions))
 
 
 # =========================================================
@@ -503,7 +536,7 @@ def _environment_is_complete(global_meta: str) -> bool:
             if not _linear_size_dir(run_idx, test_size).exists():
                 return False
 
-            if not _bologna_size_dir(run_idx, test_size).exists():
+            if not _distribution_size_dir(run_idx, test_size).exists():
                 return False
 
     return True
@@ -551,8 +584,6 @@ def create_virtual_test_env() -> None:
     _test_env_metrics_dir().mkdir(parents=True, exist_ok=True)
     _tests_root_dir().mkdir(parents=True, exist_ok=True)
 
-    rng = np.random.default_rng(RANDOM_SEED)
-
     all_duplicate_frames: list[pd.DataFrame] = []
 
     for run_idx in range(1, N_RUNS + 1):
@@ -564,14 +595,12 @@ def create_virtual_test_env() -> None:
         _metadata_dir(run_idx).mkdir(parents=True, exist_ok=True)
         _metrics_dir(run_idx).mkdir(parents=True, exist_ok=True)
 
-        for test_size in TEST_SIZES:
-            sampled_questions = rng.choice(
-                question_ids,
-                size=test_size,
-                replace=False,
+        for test_size in sorted(TEST_SIZES):
+            sampled_questions = _sample_questions_for_run_and_size(
+                question_ids=question_ids,
+                run_idx=run_idx,
+                test_size=int(test_size),
             )
-
-            sampled_questions = sorted(map(str, sampled_questions))
 
             eligible_students, duplicate_counts = _eligible_students_for_sampled_questions(
                 df_base=df_valid,
@@ -584,16 +613,16 @@ def create_virtual_test_env() -> None:
                 duplicate_counts["questions_number"] = test_size
                 all_duplicate_frames.append(duplicate_counts)
 
-            _linear_size_dir(run_idx, test_size).mkdir(parents=True, exist_ok=True)
-            _bologna_size_dir(run_idx, test_size).mkdir(parents=True, exist_ok=True)
+            _linear_size_dir(run_idx, int(test_size)).mkdir(parents=True, exist_ok=True)
+            _distribution_size_dir(run_idx, int(test_size)).mkdir(parents=True, exist_ok=True)
 
-            question_file = _question_file(run_idx, test_size)
+            question_file = _question_file(run_idx, int(test_size))
             question_file.write_text(
                 "\n".join(sampled_questions),
                 encoding="utf-8",
             )
 
-            student_file = _student_file(run_idx, test_size)
+            student_file = _student_file(run_idx, int(test_size))
             student_file.write_text(
                 "\n".join(eligible_students),
                 encoding="utf-8",
@@ -601,14 +630,14 @@ def create_virtual_test_env() -> None:
 
             metadata_text = _build_test_metadata_text(
                 test_number=run_idx,
-                questions_number=test_size,
+                questions_number=int(test_size),
                 sampled_questions=sampled_questions,
                 eligible_students=eligible_students,
                 df_source=df,
                 df_valid=df_valid,
             )
 
-            metadata_file = _test_metadata_file(run_idx, test_size)
+            metadata_file = _test_metadata_file(run_idx, int(test_size))
             metadata_file.write_text(metadata_text, encoding="utf-8")
 
     if all_duplicate_frames:

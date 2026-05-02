@@ -124,7 +124,7 @@ OUTPUT_PARQUET = Path(TEST_ENV_FOLDER) / TESTS_DATAFRAME / "dataframe_env.parque
 N_RUNS = 500
 
 # Number of questions per sampled test
-TEST_SIZES = [10]
+TEST_SIZES = [5, 10, 15, 20, 21]
 
 # Random seed for reproducibility
 RANDOM_SEED = 4242

@@ -1,0 +1,13 @@
+=== DATASET STATISTICS ===
+
+Students (final release): 173
+Total responses: 30682
+Avg responses per question: 128.38
+Avg responses per student: 177.35
+Avg response length (tokens): 29.07
+
+Unique questions: 239
+Gold-labeled responses: 3222
+Median responses per question: 152.00
+Median responses per student: 199.00
+Median response length (tokens): 15.00
