@@ -21,7 +21,7 @@ from vex_config import (
     TEST_METADATA_FOLDER,
     TEST_METRICS_FOLDER,
     LINEAR_FOLDER,
-    BOLOGNA_FOLDER,
+    DISTRIBUTION_FOLDER,
     TEST_SIZE_FOLDER,
     QUESTION_FILE,
     STUDENT_FILE,
@@ -128,7 +128,7 @@ def _linear_size_dir(run_idx: int, test_size: int) -> Path:
 def _bologna_size_dir(run_idx: int, test_size: int) -> Path:
     return (
         _run_dir(run_idx)
-        / BOLOGNA_FOLDER
+        / DISTRIBUTION_FOLDER
         / TEST_SIZE_FOLDER.format(questions_number=test_size)
     )
 

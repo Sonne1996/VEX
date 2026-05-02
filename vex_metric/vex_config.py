@@ -60,20 +60,20 @@ INPUT_PARQUET = (
 #                   linear_df_human.txt
 #                   linear_df_grade_google_gemini_2.5_pro.txt
 #                   ...
-#           bologna/
+#           distribution/
 #               10/
-#                   bologna_df_human.txt
-#                   bologna_df_grade_google_gemini_2.5_pro.txt
+#                   distribution_df_human.txt
+#                   distribution_df_grade_google_gemini_2.5_pro.txt
 #                   ...
 #               15/
-#                   bologna_df_human.txt
-#                   bologna_df_grade_google_gemini_2.5_pro.txt
+#                   distribution_df_human.txt
+#                   distribution_df_grade_google_gemini_2.5_pro.txt
 #                   ...
 #           metrics/
 #               test_1_metrics.txt
 #       test_2/
 #           ...
-#   4_dataframe
+#   4_dataframe/
 #
 TEST_ENV_FOLDER = BASE_DIR / "vex_test_env"
 
@@ -94,9 +94,9 @@ TEST_METRICS_FOLDER = "metrics"
 
 # Scale-specific dataframe folders inside one test run
 LINEAR_FOLDER = "linear"
-BOLOGNA_FOLDER = "bologna"
+DISTRIBUTION_FOLDER = "distribution"
 
-# Subfolder name inside linear/ and bologna/ based on test size
+# Subfolder name inside linear/ and distribution/ based on test size
 TEST_SIZE_FOLDER = "{questions_number}"
 
 # Files inside one test run
@@ -111,7 +111,7 @@ OUTPUT_REPORT_FILE = "virtual_test_report.txt"
 
 # Stored dataframe file names
 LINEAR_DATAFRAME_FILE = "linear_df_{h_or_m}.txt"
-BOLOGNA_DATAFRAME_FILE = "bologna_df_{h_or_m}.txt"
+DISTRIBUTION_DATAFRAME_FILE = "distribution_df_{h_or_m}.txt"
 
 OUTPUT_PARQUET = Path(TEST_ENV_FOLDER) / TESTS_DATAFRAME / "dataframe_env.parquet"
 
@@ -189,28 +189,28 @@ LINEAR_PASS_THRESHOLD_ABS = LINEAR_MIN_GRADE + (
 
 
 # =========================================================
-# BOLOGNA SCALE
+# Distribution SCALE
 # =========================================================
 
-BOLOGNA_GRADE_SCALE_NAME = "Bologna"
+DISTRIBUTION_GRADE_SCALE_NAME = "Distribution"
 
 # Minimum achievable points
-BOLOGNA_MIN_POINTS = 0
+DISTRIBUTION_MIN_POINTS = 0
 
 # Passing threshold
-BOLOGNA_PASS_THRESHOLD_NORM = 0.6
+DISTRIBUTION_PASS_THRESHOLD_NORM = 0.6
 
-# Number of passing Bologna categories
-BOLOGNA_NUM_PASSING_CATEGORIES = 5
+# Number of passing distribution categories
+DISTRIBUTION_NUM_PASSING_CATEGORIES = 5
 
 # Relative distribution among passing students
-BOLOGNA_PASSING_DISTRIBUTION = [0.10, 0.25, 0.30, 0.25, 0.10]
+DISTRIBUTION_PASSING_DISTRIBUTION = [0.10, 0.25, 0.30, 0.25, 0.10]
 
 # Labels for passed students
-BOLOGNA_PASSING_LABELS = ["A", "B", "C", "D", "E"]
+DISTRIBUTION_PASSING_LABELS = ["A", "B", "C", "D", "E"]
 
 # Label for failed students
-BOLOGNA_FAIL_LABEL = "F"
+DISTRIBUTION_FAIL_LABEL = "F"
 
 # Ordered labels for evaluation
-BOLOGNA_ORDERED_LABELS = ["F", "E", "D", "C", "B", "A"]
+DISTRIBUTION_ORDERED_LABELS = ["F", "E", "D", "C", "B", "A"]

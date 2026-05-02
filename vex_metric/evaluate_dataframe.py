@@ -26,12 +26,12 @@ from vex_config import (
     LINEAR_ROUNDING_STEP,
     LINEAR_PASS_THRESHOLD_NORM,
     LINEAR_DATAFRAME_FILE,
-    BOLOGNA_DATAFRAME_FILE,
-    BOLOGNA_PASS_THRESHOLD_NORM,
-    BOLOGNA_PASSING_DISTRIBUTION,
-    BOLOGNA_PASSING_LABELS,
-    BOLOGNA_FAIL_LABEL,
-    BOLOGNA_ORDERED_LABELS,
+    DISTRIBUTION_DATAFRAME_FILE,
+    DISTRIBUTION_PASS_THRESHOLD_NORM,
+    DISTRIBUTION_PASSING_DISTRIBUTION,
+    DISTRIBUTION_PASSING_LABELS,
+    DISTRIBUTION_FAIL_LABEL,
+    DISTRIBUTION_ORDERED_LABELS,
     TESTS_ROOT_FOLDER,
     TEST_RUN_FOLDER,
     TEST_METRICS_FOLDER,
@@ -205,7 +205,7 @@ def _bologna_dataframe_path(
     test_size: int,
     h_or_m: str,
 ) -> Path:
-    filename = BOLOGNA_DATAFRAME_FILE.format(
+    filename = DISTRIBUTION_DATAFRAME_FILE.format(
         h_or_m=_safe_file_token(h_or_m)
     )
     return _bologna_size_dir(test_number, test_size) / filename
@@ -539,11 +539,11 @@ def _linear_grade_to_pass_fail(grades: pd.Series) -> pd.Series:
 # =========================================================
 
 def _label_for_rank_position(position_1_based: int, cutoffs: list[int]) -> str:
-    for label, cutoff in zip(BOLOGNA_PASSING_LABELS, cutoffs):
+    for label, cutoff in zip(DISTRIBUTION_PASSING_LABELS, cutoffs):
         if position_1_based <= cutoff:
             return label
 
-    return BOLOGNA_PASSING_LABELS[-1]
+    return DISTRIBUTION_PASSING_LABELS[-1]
 
 
 def _assign_bologna_labels_from_normalized(
@@ -571,11 +571,11 @@ def _assign_bologna_labels_from_normalized(
     if scores.empty:
         return pd.Series(dtype="object", index=normalized_scores.index)
 
-    pass_threshold_abs = float(test_size) * float(BOLOGNA_PASS_THRESHOLD_NORM)
+    pass_threshold_abs = float(test_size) * float(DISTRIBUTION_PASS_THRESHOLD_NORM)
     absolute_points = scores * float(test_size)
 
     passed_mask = absolute_points >= pass_threshold_abs
-    result = pd.Series(BOLOGNA_FAIL_LABEL, index=scores.index, dtype="object")
+    result = pd.Series(DISTRIBUTION_FAIL_LABEL, index=scores.index, dtype="object")
 
     passed = absolute_points[passed_mask].dropna()
 
@@ -583,7 +583,7 @@ def _assign_bologna_labels_from_normalized(
         return result
 
     n_passed = len(passed)
-    cumulative = np.cumsum(BOLOGNA_PASSING_DISTRIBUTION)
+    cumulative = np.cumsum(DISTRIBUTION_PASSING_DISTRIBUTION)
     cutoffs = [int(np.ceil(n_passed * x)) for x in cumulative]
     cutoffs[-1] = n_passed
 
@@ -615,7 +615,7 @@ def _assign_bologna_labels_from_normalized(
 
 
 def _bologna_labels_to_ordinals(labels: pd.Series | list[str]) -> np.ndarray:
-    mapping = {label: idx for idx, label in enumerate(BOLOGNA_ORDERED_LABELS)}
+    mapping = {label: idx for idx, label in enumerate(DISTRIBUTION_ORDERED_LABELS)}
     return np.array([mapping[x] for x in labels], dtype=int)
 
 
@@ -704,7 +704,7 @@ def _student_scale_export_df(
     )
 
     grouped["bologna_pass"] = (
-        grouped["bologna_label"] != BOLOGNA_FAIL_LABEL
+        grouped["bologna_label"] != DISTRIBUTION_FAIL_LABEL
     ).astype("Int64")
 
     grouped = grouped.sort_values(

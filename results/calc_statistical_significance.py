@@ -2777,7 +2777,7 @@ def main(excluded_model, test_size, model_cat) -> int:
 if __name__ == "__main__":
     model_cat = ""
     for test_size in TEST_SIZES:
-        '''
+   
         model_cat = "PRIOR"
         EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_PRIOR
         main(EXCLUDE_MODELS, test_size, model_cat)
@@ -2789,7 +2789,7 @@ if __name__ == "__main__":
         model_cat = "ENCODER"
         EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_ENCODER
         main(EXCLUDE_MODELS, test_size, model_cat)
-        '''
+    
         model_cat = "JOINT"
         EXCLUDE_MODELS = EXCLUDE_MODELS_COLUMN_JOINT
         main(EXCLUDE_MODELS, test_size, model_cat)
