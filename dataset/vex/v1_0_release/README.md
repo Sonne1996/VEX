@@ -35,6 +35,15 @@ v1_0_stable.parquet
 
 This file is the canonical dataset file expected by the model scripts in [../../../models/README.md](../../../models/README.md#L1).
 
+The current folder also contains split-specific convenience exports:
+
+```text
+train.parquet
+test.parquet
+```
+
+These files are derived from the `split` column of `v1_0_stable.parquet`.
+
 The release dataset preserves the stable answer-level structure used across the repository, including:
 
 - identifiers such as `member_id`, `subject_id`, `answer_id`, `question_id`, and `grading_id`,
@@ -73,6 +82,9 @@ For that reason, the most reliable interpretation of this folder is:
 - the stable schema is inherited from `v0.3_stable` with minor cleanup for release,
 - `split_release.py` documents how the released file can be partitioned into `train` and `test`,
 - the public repository snapshot does not contain a fully polished standalone conversion script for the final renaming step.
+
+For normal downstream use, prefer the existing `v1_0_stable.parquet`,
+`train.parquet`, and `test.parquet` files over rerunning `v1_0.py`.
 
 ## Relation to Other Folders
 

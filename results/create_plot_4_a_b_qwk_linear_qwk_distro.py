@@ -2,37 +2,76 @@
 # -*- coding: utf-8 -*-
 
 """
-Create Figure 4: EL-QWK under absolute linear vs. distribution-based grading.
+Create Figure 4: Q10 exam-level metric sensitivity to grade-scale granularity.
+
+Run from:
+    VEX/results/
+
+Example:
+    python create_plot_4_q10_granularity.py
 
 Input:
-    vex_metric/vex_test_env/2_metrics/exam_level_precomputed_metrics.parquet
+    ../vex_metric/vex_test_env/4_dataframe/dataframe_env.parquet
 
-Figure:
-    (a) Absolute Linear Scale
-        Uses el_qwk_linear_abs. This is the Swiss-style absolute scale:
-        normalized score -> grade = 1 + 5 * score, rounded in the metric code.
+Scope:
+    Only test_size == 10.
 
-    (b) Distribution-Based Scale
-        Uses el_qwk_bologna. This is the Bologna/rank-based scale with the
-        configured passing distribution.
+Grade-scale construction:
+    n_classes = 2..10
 
-Each point is one model. The two panels use the same model order, sorted by
-absolute-linear EL-QWK, so differences between panels show whether degradation
-is more likely caused by poor absolute calibration or poor relative ranking.
+    absolute_threshold:
+        class 0:
+            fail, normalized score < PASS_THRESHOLD
+
+        classes 1..n_classes-1:
+            passing categories, equal-width bins on [PASS_THRESHOLD, 1.0]
+
+        Therefore:
+            n_classes = 2 means binary fail/pass.
+            n_classes = 10 means fail + 9 absolute passing categories.
+
+    bologna_distribution:
+        class 0:
+            fail, normalized score < PASS_THRESHOLD
+
+        classes 1..n_classes-1:
+            passing categories assigned by rank among passing students.
+
+        The passing-class distribution is interpolated from the default
+        Bologna distribution:
+
+            [0.10, 0.25, 0.30, 0.25, 0.10]
+
+        Therefore:
+            n_classes = 2 means binary fail/pass.
+            n_classes = 6 means F + A/B/C/D/E-style Bologna.
+            n_classes = 10 means fail + 9 finer Bologna-shaped passing categories.
+
+Metrics:
+    - EL-Acc
+    - EL-QWK
+    - EL-tau_b
 
 Outputs:
-    results/figures_plot_4/figure_4_el_qwk_linear_vs_bologna.pdf
-    results/figures_plot_4/figure_4_el_qwk_linear_vs_bologna.png
-    results/figures_plot_4/el_qwk_linear.pdf
-    results/figures_plot_4/el_qwk_distribution.pdf
-    results/figures_plot_4/figure_4_el_qwk_linear_vs_bologna_data.csv
-    results/figures_plot_4/figure_4_sanity_check.txt
+    figures_plot_4/
+        figure_4_q10_absolute_el_acc_granularity.png/pdf
+        figure_4_q10_absolute_el_qwk_granularity.png/pdf
+        figure_4_q10_absolute_el_tau_granularity.png/pdf
+
+        figure_4_q10_bologna_el_acc_granularity.png/pdf
+        figure_4_q10_bologna_el_qwk_granularity.png/pdf
+        figure_4_q10_bologna_el_tau_granularity.png/pdf
+
+        figure_4_q10_granularity_data.csv
+        figure_4_q10_granularity_per_exam.csv
+        figure_4_q10_sanity_check.txt
 """
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 
@@ -41,73 +80,136 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import kendalltau
 
 
-SCRIPT_PATH = Path(__file__).resolve()
-PROJECT_ROOT = SCRIPT_PATH.parents[1]
-VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
+# =========================================================
+# RELATIVE PATH CONFIG
+# =========================================================
 
-sys.path.insert(0, str(PROJECT_ROOT))
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+VEX_METRIC_DIR = (SCRIPT_DIR / ".." / "vex_metric").resolve()
+PROJECT_ROOT = (SCRIPT_DIR / "..").resolve()
+
 sys.path.insert(0, str(VEX_METRIC_DIR))
 
-import vex_config as cfg
+try:
+    import vex_config as cfg
+except ModuleNotFoundError as exc:
+    raise ModuleNotFoundError(
+        "Could not import vex_config.\n"
+        "Expected this script to be located in:\n"
+        "  VEX/results/\n"
+        "Expected vex_config.py at:\n"
+        f"  {VEX_METRIC_DIR / 'vex_config.py'}\n"
+        "Run it from VEX/results/ with:\n"
+        "  python create_plot_4_q10_granularity.py"
+    ) from exc
 
+
+INPUT_PARQUET = (
+    SCRIPT_DIR
+    / ".."
+    / "vex_metric"
+    / "vex_test_env"
+    / "4_dataframe"
+    / "dataframe_env.parquet"
+)
+OUTPUT_DIR = SCRIPT_DIR / "figures_plot_4"
+
+
+# =========================================================
+# COLUMN CONFIG
+# =========================================================
+
+MODEL_COL = "model_col"
+
+TEST_ID_COL = "test_id"
+TEST_SIZE_COL = "test_size"
+QUESTION_ID_COL = "question_id"
+STUDENT_ID_COL = "member_id"
+ANSWER_ID_COL = "answer_id"
+HUMAN_GRADE_COL = "human_grade"
+
+MODEL_COLUMNS = list(cfg.MODEL_COLUMNS)
+
+
+# =========================================================
+# GRANULARITY CONFIG
+# =========================================================
+
+TARGET_TEST_SIZE = 10
+
+MIN_CLASSES = 2
+MAX_CLASSES = 10
+CLASS_COUNTS = list(range(MIN_CLASSES, MAX_CLASSES + 1))
+
+PASS_THRESHOLD = float(cfg.LINEAR_PASS_THRESHOLD_NORM)
+
+RECOMPUTE_PER_EXAM_METRICS = True
+
+SCALE_ABSOLUTE = "absolute_threshold"
+SCALE_BOLOGNA = "bologna_distribution"
+SCALE_TYPES = [SCALE_ABSOLUTE, SCALE_BOLOGNA]
+
+
+# =========================================================
+# OUTPUT FILES
+# =========================================================
+
+FIGURE_ABS_ACC_PDF = OUTPUT_DIR / "figure_4_q10_absolute_el_acc_granularity.pdf"
+FIGURE_ABS_ACC_PNG = OUTPUT_DIR / "figure_4_q10_absolute_el_acc_granularity.png"
+
+FIGURE_ABS_QWK_PDF = OUTPUT_DIR / "figure_4_q10_absolute_el_qwk_granularity.pdf"
+FIGURE_ABS_QWK_PNG = OUTPUT_DIR / "figure_4_q10_absolute_el_qwk_granularity.png"
+
+FIGURE_ABS_TAU_PDF = OUTPUT_DIR / "figure_4_q10_absolute_el_tau_granularity.pdf"
+FIGURE_ABS_TAU_PNG = OUTPUT_DIR / "figure_4_q10_absolute_el_tau_granularity.png"
+
+FIGURE_BOL_ACC_PDF = OUTPUT_DIR / "figure_4_q10_bologna_el_acc_granularity.pdf"
+FIGURE_BOL_ACC_PNG = OUTPUT_DIR / "figure_4_q10_bologna_el_acc_granularity.png"
+
+FIGURE_BOL_QWK_PDF = OUTPUT_DIR / "figure_4_q10_bologna_el_qwk_granularity.pdf"
+FIGURE_BOL_QWK_PNG = OUTPUT_DIR / "figure_4_q10_bologna_el_qwk_granularity.png"
+
+FIGURE_BOL_TAU_PDF = OUTPUT_DIR / "figure_4_q10_bologna_el_tau_granularity.pdf"
+FIGURE_BOL_TAU_PNG = OUTPUT_DIR / "figure_4_q10_bologna_el_tau_granularity.png"
+
+SUMMARY_CSV = OUTPUT_DIR / "figure_4_q10_granularity_data.csv"
+PER_EXAM_CSV = OUTPUT_DIR / "figure_4_q10_granularity_per_exam.csv"
+SANITY_CHECK_TXT = OUTPUT_DIR / "figure_4_q10_sanity_check.txt"
+
+
+# =========================================================
+# PLOT CONFIG
+# =========================================================
 
 plt.rcParams.update(
     {
         "font.size": 9,
-        "axes.titlesize": 11,
+        "axes.titlesize": 12,
         "axes.labelsize": 10,
         "xtick.labelsize": 9,
-        "ytick.labelsize": 8,
-        "legend.fontsize": 8,
+        "ytick.labelsize": 9,
+        "legend.fontsize": 7,
     }
 )
-
-
-# =========================================================
-# CONFIG
-# =========================================================
-
-INPUT_PARQUET = (
-    Path(cfg.TEST_ENV_FOLDER)
-    / cfg.TEST_ENV_METRICS_FOLDER
-    / "exam_level_precomputed_metrics.parquet"
-)
-OUTPUT_DIR = SCRIPT_PATH.parent / "figures_plot_4"
-
-MODEL_COLUMNS = list(cfg.MODEL_COLUMNS)
-
-MODEL_COL = "model_col"
-TEST_ID_COL = "test_id"
-TEST_SIZE_COL = "test_size"
-
-LINEAR_COL = "el_qwk_linear_abs"
-BOLOGNA_COL = "el_qwk_bologna"
-
-COMBINED_PDF = OUTPUT_DIR / "figure_4_el_qwk_linear_vs_bologna.pdf"
-COMBINED_PNG = OUTPUT_DIR / "figure_4_el_qwk_linear_vs_bologna.png"
-LINEAR_PDF = OUTPUT_DIR / "el_qwk_linear.pdf"
-LINEAR_PNG = OUTPUT_DIR / "el_qwk_linear.png"
-DISTRIBUTION_PDF = OUTPUT_DIR / "el_qwk_distribution.pdf"
-DISTRIBUTION_PNG = OUTPUT_DIR / "el_qwk_distribution.png"
-DATA_CSV = OUTPUT_DIR / "figure_4_el_qwk_linear_vs_bologna_data.csv"
-BY_SIZE_CSV = OUTPUT_DIR / "figure_4_el_qwk_linear_vs_bologna_by_test_size.csv"
-SANITY_CHECK_TXT = OUTPUT_DIR / "figure_4_sanity_check.txt"
-
-STALE_OUTPUTS = [
-    OUTPUT_DIR / "figure_4_el_qwk_granularity.pdf",
-    OUTPUT_DIR / "figure_4_el_qwk_granularity.png",
-    OUTPUT_DIR / "figure_4_el_qwk_granularity_data.csv",
-    OUTPUT_DIR / "figure_4_el_qwk_granularity_model_summary.csv",
-    OUTPUT_DIR / "figure_4_el_qwk_granularity_per_exam.csv",
-]
 
 FAMILY_COLORS = {
     "LLM": "#1f77b4",
     "Transformer": "#2ca02c",
     "Prior": "#9467bd",
     "TF-IDF": "#ff7f0e",
+    "Other": "#666666",
+}
+
+FAMILY_LINESTYLES = {
+    "LLM": "-",
+    "Transformer": "-.",
+    "Prior": ":",
+    "TF-IDF": "--",
+    "Other": "-",
 }
 
 
@@ -137,203 +239,775 @@ DISPLAY_NAMES = {
 }
 
 
-def display_name(model_col: str) -> str:
-    return DISPLAY_NAMES.get(model_col, short_model_name(model_col))
-
-
 def short_model_name(model_col: str) -> str:
     name = str(model_col)
+
     for prefix in ("new_grade_", "grade_", "pred_"):
         if name.startswith(prefix):
             name = name.removeprefix(prefix)
+
     return name.replace("/", "_")
 
 
+def display_name(model_col: str) -> str:
+    return DISPLAY_NAMES.get(str(model_col), short_model_name(str(model_col)))
+
+
 def model_family(model_col: str) -> str:
+    model_col = str(model_col)
+
     if model_col.startswith("new_grade_"):
         return "LLM"
+
     if model_col.startswith("grade_bert") or model_col.startswith("grade_mdeberta"):
         return "Transformer"
+
     if model_col.startswith("grade_prior"):
         return "Prior"
+
     if model_col.startswith("pred_tfidf"):
         return "TF-IDF"
+
     return "Other"
 
 
 # =========================================================
-# IO AND SUMMARY
+# IO AND VALIDATION
 # =========================================================
 
 def read_parquet(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(f"Input parquet not found: {path}")
+
     try:
         return pd.read_parquet(path)
     except ImportError as exc:
         raise RuntimeError(
-            "Pandas cannot read the exam-level parquet file. Install pyarrow "
-            "or fastparquet, e.g. `pip install pyarrow`."
+            "Pandas cannot read parquet. Install pyarrow, e.g.:\n"
+            "  pip install pyarrow"
         ) from exc
 
 
 def validate_input(df: pd.DataFrame) -> None:
     required = [
-        MODEL_COL,
         TEST_ID_COL,
         TEST_SIZE_COL,
-        "n_students",
-        LINEAR_COL,
-        BOLOGNA_COL,
+        QUESTION_ID_COL,
+        STUDENT_ID_COL,
+        HUMAN_GRADE_COL,
+        *MODEL_COLUMNS,
     ]
+
     missing = [col for col in required if col not in df.columns]
+
     if missing:
-        raise ValueError(f"Missing columns in exam-level metrics parquet: {missing}")
+        raise ValueError(
+            "Missing required columns in dataframe_env.parquet:\n"
+            + "\n".join(f"  - {col}" for col in missing)
+        )
 
-    missing_models = sorted(set(MODEL_COLUMNS) - set(df[MODEL_COL].dropna().unique()))
-    if missing_models:
-        raise ValueError(f"Missing model rows in exam-level metrics parquet: {missing_models}")
+
+def assert_no_duplicate_exam_student_question_pairs(df_env: pd.DataFrame) -> None:
+    key_cols = [
+        TEST_ID_COL,
+        TEST_SIZE_COL,
+        STUDENT_ID_COL,
+        QUESTION_ID_COL,
+    ]
+
+    duplicate_mask = df_env.duplicated(subset=key_cols, keep=False)
+
+    if duplicate_mask.any():
+        preview_cols = key_cols.copy()
+
+        if ANSWER_ID_COL in df_env.columns:
+            preview_cols.append(ANSWER_ID_COL)
+
+        duplicates = (
+            df_env.loc[duplicate_mask, preview_cols]
+            .sort_values(key_cols)
+            .head(100)
+        )
+
+        raise ValueError(
+            "dataframe_env.parquet contains duplicate "
+            "(test_id, test_size, member_id, question_id) rows. "
+            "Exam-level totals would be invalid.\n"
+            f"Examples:\n{duplicates.to_string(index=False)}"
+        )
 
 
-def compute_model_summary(df: pd.DataFrame) -> pd.DataFrame:
-    work_df = df.copy()
-    work_df[LINEAR_COL] = pd.to_numeric(work_df[LINEAR_COL], errors="coerce")
-    work_df[BOLOGNA_COL] = pd.to_numeric(work_df[BOLOGNA_COL], errors="coerce")
+# =========================================================
+# METRIC HELPERS
+# =========================================================
 
-    summary = (
-        work_df.groupby(MODEL_COL, sort=False)
+def accuracy_safe(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    valid_mask = np.isfinite(y_true) & np.isfinite(y_pred)
+
+    if not valid_mask.any():
+        return np.nan
+
+    return float(np.mean(y_true[valid_mask] == y_pred[valid_mask]))
+
+
+def qwk_safe(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    n_classes: int,
+) -> float:
+    valid_mask = np.isfinite(y_true) & np.isfinite(y_pred)
+
+    y_true = y_true[valid_mask].astype(int)
+    y_pred = y_pred[valid_mask].astype(int)
+
+    if len(y_true) == 0 or len(y_true) != len(y_pred):
+        return np.nan
+
+    if len(np.unique(y_true)) == 1 and len(np.unique(y_pred)) == 1:
+        return 1.0 if np.array_equal(y_true, y_pred) else 0.0
+
+    observed = np.zeros((n_classes, n_classes), dtype=float)
+
+    for true_value, pred_value in zip(y_true, y_pred, strict=False):
+        if 0 <= true_value < n_classes and 0 <= pred_value < n_classes:
+            observed[true_value, pred_value] += 1.0
+
+    total = observed.sum()
+
+    if total == 0:
+        return np.nan
+
+    hist_true = observed.sum(axis=1)
+    hist_pred = observed.sum(axis=0)
+    expected = np.outer(hist_true, hist_pred) / total
+
+    denom = float((n_classes - 1) ** 2)
+
+    if denom == 0:
+        return np.nan
+
+    weights = np.fromfunction(
+        lambda i, j: ((i - j) ** 2) / denom,
+        (n_classes, n_classes),
+        dtype=float,
+    )
+
+    observed_weighted = float((weights * observed).sum())
+    expected_weighted = float((weights * expected).sum())
+
+    if expected_weighted == 0:
+        return 1.0 if np.array_equal(y_true, y_pred) else 0.0
+
+    return 1.0 - (observed_weighted / expected_weighted)
+
+
+def tau_b_safe(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+) -> float:
+    valid_mask = np.isfinite(y_true) & np.isfinite(y_pred)
+
+    y_true = y_true[valid_mask].astype(float)
+    y_pred = y_pred[valid_mask].astype(float)
+
+    if len(y_true) < 2 or len(y_true) != len(y_pred):
+        return np.nan
+
+    if len(np.unique(y_true)) <= 1 or len(np.unique(y_pred)) <= 1:
+        return np.nan
+
+    try:
+        tau, _ = kendalltau(y_true, y_pred)
+        return float(tau) if pd.notna(tau) else np.nan
+    except Exception:
+        return np.nan
+
+
+# =========================================================
+# ABSOLUTE THRESHOLD SCALE
+# =========================================================
+
+def labels_from_normalized_scores_absolute_threshold(
+    scores: pd.Series | np.ndarray,
+    n_classes: int,
+) -> np.ndarray:
+    """
+    Converts normalized exam scores to absolute threshold-based final classes.
+
+    class 0:
+        fail, score < PASS_THRESHOLD
+
+    classes 1..n_classes-1:
+        passing categories, equal-width bins on [PASS_THRESHOLD, 1.0]
+
+    Higher class value means better final grade.
+    """
+    if n_classes < 2:
+        raise ValueError("n_classes must be >= 2.")
+
+    scores_arr = np.asarray(scores, dtype=float)
+    labels = np.full(len(scores_arr), np.nan, dtype=float)
+
+    valid_mask = np.isfinite(scores_arr)
+    valid_scores = scores_arr[valid_mask]
+
+    valid_labels = np.zeros(len(valid_scores), dtype=float)
+
+    pass_mask = valid_scores >= PASS_THRESHOLD
+
+    if pass_mask.any():
+        passing_scores = valid_scores[pass_mask]
+
+        denominator = 1.0 - PASS_THRESHOLD
+
+        if denominator <= 0:
+            raise ValueError(
+                f"Invalid PASS_THRESHOLD={PASS_THRESHOLD}. Must be < 1.0."
+            )
+
+        passing_relative = (passing_scores - PASS_THRESHOLD) / denominator
+        passing_bins = np.floor(passing_relative * float(n_classes - 1)) + 1.0
+        passing_bins = np.clip(passing_bins, 1.0, float(n_classes - 1))
+
+        valid_labels[pass_mask] = passing_bins
+
+    labels[valid_mask] = valid_labels
+
+    return labels
+
+
+# =========================================================
+# BOLOGNA DISTRIBUTION SCALE
+# =========================================================
+
+def interpolated_bologna_passing_distribution(
+    n_passing_classes: int,
+) -> list[float]:
+    """
+    Builds a Bologna-shaped passing distribution for an arbitrary number
+    of passing classes.
+
+    Anchor:
+        5 passing classes -> cfg.BOLOGNA_PASSING_DISTRIBUTION
+        normally [0.10, 0.25, 0.30, 0.25, 0.10]
+
+    Examples:
+        n_passing_classes = 1 -> [1.0]
+        n_passing_classes = 5 -> default Bologna A/B/C/D/E
+        n_passing_classes = 9 -> finer Bologna-shaped distribution
+    """
+    if n_passing_classes < 1:
+        raise ValueError("n_passing_classes must be >= 1.")
+
+    if n_passing_classes == 1:
+        return [1.0]
+
+    base_distribution = np.asarray(
+        cfg.BOLOGNA_PASSING_DISTRIBUTION,
+        dtype=float,
+    )
+
+    if base_distribution.ndim != 1 or len(base_distribution) == 0:
+        raise ValueError("cfg.BOLOGNA_PASSING_DISTRIBUTION must be a non-empty list.")
+
+    if not np.isclose(base_distribution.sum(), 1.0):
+        base_distribution = base_distribution / base_distribution.sum()
+
+    base_cdf = np.concatenate([[0.0], np.cumsum(base_distribution)])
+    base_x = np.linspace(0.0, 1.0, len(base_cdf))
+
+    target_x = np.linspace(0.0, 1.0, n_passing_classes + 1)
+    target_cdf = np.interp(target_x, base_x, base_cdf)
+
+    distribution = np.diff(target_cdf)
+    distribution = np.maximum(distribution, 0.0)
+
+    if distribution.sum() <= 0:
+        return [1.0 / n_passing_classes] * n_passing_classes
+
+    distribution = distribution / distribution.sum()
+
+    return distribution.tolist()
+
+
+def labels_from_normalized_scores_bologna_distribution(
+    scores: pd.Series | np.ndarray,
+    n_classes: int,
+) -> np.ndarray:
+    """
+    Converts normalized exam scores to distribution-based Bologna-style classes.
+
+    class 0:
+        fail, score < PASS_THRESHOLD
+
+    classes 1..n_classes-1:
+        passing students are ranked by score and assigned to passing classes
+        according to an interpolated Bologna-shaped distribution.
+
+    Higher class value means better final grade.
+
+    Tie handling:
+        Identical score totals always receive the same category.
+        If a tied group crosses a boundary, the full group receives the
+        better category touched by the group's first rank.
+    """
+    if n_classes < 2:
+        raise ValueError("n_classes must be >= 2.")
+
+    scores_arr = np.asarray(scores, dtype=float)
+    labels = np.full(len(scores_arr), np.nan, dtype=float)
+
+    valid_mask = np.isfinite(scores_arr)
+
+    if not valid_mask.any():
+        return labels
+
+    valid_indices = np.where(valid_mask)[0]
+    valid_scores = scores_arr[valid_indices]
+
+    labels[valid_indices] = 0.0
+
+    passed_mask = valid_scores >= PASS_THRESHOLD
+
+    if not passed_mask.any():
+        return labels
+
+    passed_indices = valid_indices[passed_mask]
+    passed_scores = scores_arr[passed_indices]
+
+    n_passed = len(passed_indices)
+    n_passing_classes = n_classes - 1
+
+    passing_distribution = interpolated_bologna_passing_distribution(
+        n_passing_classes=n_passing_classes,
+    )
+
+    cumulative = np.cumsum(passing_distribution)
+    cutoffs = [int(np.ceil(n_passed * x)) for x in cumulative]
+    cutoffs[-1] = n_passed
+
+    passed_df = (
+        pd.DataFrame(
+            {
+                "idx": passed_indices,
+                "score": passed_scores,
+            }
+        )
+        .sort_values(["score", "idx"], ascending=[False, True])
+        .reset_index(drop=True)
+    )
+
+    current_rank_start = 1
+
+    for _, group in passed_df.groupby("score", sort=False):
+        group_size = len(group)
+        rank_start = current_rank_start
+        rank_end = current_rank_start + group_size - 1
+
+        pass_class_index = n_passing_classes - 1
+
+        for candidate_index, cutoff in enumerate(cutoffs):
+            if rank_start <= cutoff:
+                pass_class_index = candidate_index
+                break
+
+        ordinal_label = n_classes - 1 - pass_class_index
+
+        labels[group["idx"].to_numpy()] = float(ordinal_label)
+
+        current_rank_start = rank_end + 1
+
+    return labels
+
+
+def labels_from_normalized_scores(
+    scores: pd.Series | np.ndarray,
+    n_classes: int,
+    scale_type: str,
+) -> np.ndarray:
+    if scale_type == SCALE_ABSOLUTE:
+        return labels_from_normalized_scores_absolute_threshold(
+            scores=scores,
+            n_classes=n_classes,
+        )
+
+    if scale_type == SCALE_BOLOGNA:
+        return labels_from_normalized_scores_bologna_distribution(
+            scores=scores,
+            n_classes=n_classes,
+        )
+
+    raise ValueError(f"Unknown scale_type: {scale_type}")
+
+
+# =========================================================
+# STUDENT TOTALS
+# =========================================================
+
+def build_base_student_totals(df_env: pd.DataFrame) -> pd.DataFrame:
+    base = df_env[
+        [
+            TEST_ID_COL,
+            TEST_SIZE_COL,
+            STUDENT_ID_COL,
+            QUESTION_ID_COL,
+            HUMAN_GRADE_COL,
+        ]
+    ].copy()
+
+    base[HUMAN_GRADE_COL] = pd.to_numeric(
+        base[HUMAN_GRADE_COL],
+        errors="coerce",
+    )
+
+    grouped = (
+        base.groupby([TEST_ID_COL, TEST_SIZE_COL, STUDENT_ID_COL], sort=False)
         .agg(
-            exam_rows=(TEST_ID_COL, "size"),
-            virtual_exams=(TEST_ID_COL, "nunique"),
-            test_sizes=(TEST_SIZE_COL, lambda s: ",".join(map(str, sorted(set(s))))),
-            n_students_mean=("n_students", "mean"),
-            linear_qwk_mean=(LINEAR_COL, "mean"),
-            linear_qwk_std=(LINEAR_COL, "std"),
-            linear_missing=(LINEAR_COL, lambda s: int(s.isna().sum())),
-            bologna_qwk_mean=(BOLOGNA_COL, "mean"),
-            bologna_qwk_std=(BOLOGNA_COL, "std"),
-            bologna_missing=(BOLOGNA_COL, lambda s: int(s.isna().sum())),
+            n_rows=(QUESTION_ID_COL, "size"),
+            n_questions=(QUESTION_ID_COL, "nunique"),
+            human_valid=(HUMAN_GRADE_COL, lambda s: int(s.notna().sum())),
+            gold_total=(HUMAN_GRADE_COL, "sum"),
         )
         .reset_index()
     )
 
-    summary["model"] = summary[MODEL_COL].map(display_name)
-    summary["family"] = summary[MODEL_COL].map(model_family)
-    summary["bologna_minus_linear"] = (
-        summary["bologna_qwk_mean"] - summary["linear_qwk_mean"]
+    grouped[TEST_SIZE_COL] = pd.to_numeric(
+        grouped[TEST_SIZE_COL],
+        errors="coerce",
+    ).astype("Int64")
+
+    grouped["gold_norm"] = grouped["gold_total"] / grouped[TEST_SIZE_COL].astype(float)
+
+    return grouped
+
+
+def build_model_student_totals(
+    df_env: pd.DataFrame,
+    base_totals: pd.DataFrame,
+    model_col: str,
+) -> pd.DataFrame:
+    pred_df = df_env[
+        [
+            TEST_ID_COL,
+            TEST_SIZE_COL,
+            STUDENT_ID_COL,
+            model_col,
+        ]
+    ].copy()
+
+    pred_df[model_col] = pd.to_numeric(pred_df[model_col], errors="coerce")
+
+    pred_totals = (
+        pred_df.groupby([TEST_ID_COL, TEST_SIZE_COL, STUDENT_ID_COL], sort=False)
+        .agg(
+            pred_valid=(model_col, lambda s: int(s.notna().sum())),
+            pred_total=(model_col, "sum"),
+        )
+        .reset_index()
     )
 
-    return summary.sort_values(
-        ["linear_qwk_mean", "bologna_qwk_mean", "model"],
-        ascending=[False, False, True],
+    totals = base_totals.merge(
+        pred_totals,
+        on=[TEST_ID_COL, TEST_SIZE_COL, STUDENT_ID_COL],
+        how="left",
+        validate="one_to_one",
+    )
+
+    test_size_numeric = totals[TEST_SIZE_COL].astype(float)
+
+    complete_mask = (
+        (totals["n_rows"] == totals[TEST_SIZE_COL])
+        & (totals["n_questions"] == totals[TEST_SIZE_COL])
+        & (totals["human_valid"] == totals[TEST_SIZE_COL])
+        & (totals["pred_valid"] == totals[TEST_SIZE_COL])
+    )
+
+    totals = totals[complete_mask].copy()
+    totals["pred_norm"] = totals["pred_total"] / test_size_numeric[complete_mask]
+
+    return totals
+
+
+# =========================================================
+# GRANULARITY METRICS
+# =========================================================
+
+def compute_granularity_metrics_for_model(
+    df_env: pd.DataFrame,
+    base_totals: pd.DataFrame,
+    model_col: str,
+) -> list[dict[str, Any]]:
+    totals = build_model_student_totals(
+        df_env=df_env,
+        base_totals=base_totals,
+        model_col=model_col,
+    )
+
+    rows: list[dict[str, Any]] = []
+
+    grouped = totals.groupby([TEST_ID_COL, TEST_SIZE_COL], sort=True)
+
+    for (test_id, test_size), exam_df in grouped:
+        test_size_int = int(test_size)
+
+        if test_size_int != TARGET_TEST_SIZE:
+            continue
+
+        gold_norm = exam_df["gold_norm"].to_numpy(dtype=float)
+        pred_norm = exam_df["pred_norm"].to_numpy(dtype=float)
+
+        for scale_type in SCALE_TYPES:
+            for n_classes in CLASS_COUNTS:
+                gold_labels = labels_from_normalized_scores(
+                    gold_norm,
+                    n_classes=n_classes,
+                    scale_type=scale_type,
+                )
+                pred_labels = labels_from_normalized_scores(
+                    pred_norm,
+                    n_classes=n_classes,
+                    scale_type=scale_type,
+                )
+
+                distribution = ""
+                if scale_type == SCALE_BOLOGNA:
+                    distribution = ",".join(
+                        f"{x:.6f}"
+                        for x in interpolated_bologna_passing_distribution(
+                            n_passing_classes=n_classes - 1
+                        )
+                    )
+
+                rows.append(
+                    {
+                        MODEL_COL: model_col,
+                        "model": display_name(model_col),
+                        "family": model_family(model_col),
+                        TEST_ID_COL: test_id,
+                        TEST_SIZE_COL: test_size_int,
+                        "scale_type": scale_type,
+                        "n_classes": int(n_classes),
+                        "n_passing_classes": int(n_classes - 1),
+                        "scale_label": str(n_classes),
+                        "scale_name": f"{scale_type}_{n_classes}_classes",
+                        "pass_threshold": PASS_THRESHOLD,
+                        "bologna_passing_distribution": distribution,
+                        "n_students": int(len(exam_df)),
+                        "el_acc": accuracy_safe(gold_labels, pred_labels),
+                        "el_qwk": qwk_safe(
+                            gold_labels,
+                            pred_labels,
+                            n_classes=n_classes,
+                        ),
+                        "el_tau": tau_b_safe(gold_labels, pred_labels),
+                    }
+                )
+
+    return rows
+
+
+def compute_granularity_metrics(df_env: pd.DataFrame) -> pd.DataFrame:
+    base_totals = build_base_student_totals(df_env)
+    all_rows: list[dict[str, Any]] = []
+
+    for model_col in MODEL_COLUMNS:
+        print(
+            f"  computing q{TARGET_TEST_SIZE} granularity metrics for "
+            f"{display_name(model_col)}"
+        )
+        all_rows.extend(
+            compute_granularity_metrics_for_model(
+                df_env=df_env,
+                base_totals=base_totals,
+                model_col=model_col,
+            )
+        )
+
+    result = pd.DataFrame(all_rows)
+
+    if result.empty:
+        return result
+
+    result[TEST_SIZE_COL] = pd.to_numeric(
+        result[TEST_SIZE_COL],
+        errors="coerce",
+    ).astype("Int64")
+
+    result["n_classes"] = pd.to_numeric(
+        result["n_classes"],
+        errors="coerce",
+    ).astype("Int64")
+
+    result["n_passing_classes"] = pd.to_numeric(
+        result["n_passing_classes"],
+        errors="coerce",
+    ).astype("Int64")
+
+    return result
+
+
+def summarize_metrics(per_exam_df: pd.DataFrame) -> pd.DataFrame:
+    summary = (
+        per_exam_df.groupby(
+            [
+                MODEL_COL,
+                "model",
+                "family",
+                "scale_type",
+                "n_classes",
+                "n_passing_classes",
+                "scale_label",
+                "scale_name",
+                "pass_threshold",
+                "bologna_passing_distribution",
+            ],
+            sort=False,
+        )
+        .agg(
+            exam_instances=(TEST_ID_COL, "size"),
+            n_runs=(TEST_ID_COL, "nunique"),
+            n_students_mean=("n_students", "mean"),
+            el_acc_mean=("el_acc", "mean"),
+            el_acc_std=("el_acc", "std"),
+            el_acc_missing=("el_acc", lambda s: int(s.isna().sum())),
+            el_qwk_mean=("el_qwk", "mean"),
+            el_qwk_std=("el_qwk", "std"),
+            el_qwk_missing=("el_qwk", lambda s: int(s.isna().sum())),
+            el_tau_mean=("el_tau", "mean"),
+            el_tau_std=("el_tau", "std"),
+            el_tau_missing=("el_tau", lambda s: int(s.isna().sum())),
+        )
+        .reset_index()
+    )
+
+    order_rows = []
+
+    for scale_type in SCALE_TYPES:
+        rank_source = summary[
+            (summary["scale_type"] == scale_type)
+            & (summary["n_classes"] == MAX_CLASSES)
+        ].copy()
+
+        rank_source = rank_source.sort_values(
+            ["el_qwk_mean", "el_tau_mean", "el_acc_mean", "model"],
+            ascending=[False, False, False, True],
+        )
+
+        for rank, model_col in enumerate(rank_source[MODEL_COL], start=1):
+            order_rows.append(
+                {
+                    "scale_type": scale_type,
+                    MODEL_COL: model_col,
+                    "model_order": rank,
+                }
+            )
+
+    order_df = pd.DataFrame(order_rows)
+
+    summary = summary.merge(
+        order_df,
+        on=["scale_type", MODEL_COL],
+        how="left",
+        validate="many_to_one",
+    )
+
+    summary = summary.sort_values(
+        ["scale_type", "model_order", "n_classes"]
     ).reset_index(drop=True)
 
+    return summary
 
-def compute_by_test_size(df: pd.DataFrame) -> pd.DataFrame:
-    work_df = df.copy()
-    work_df[LINEAR_COL] = pd.to_numeric(work_df[LINEAR_COL], errors="coerce")
-    work_df[BOLOGNA_COL] = pd.to_numeric(work_df[BOLOGNA_COL], errors="coerce")
 
-    by_size = (
-        work_df.groupby([TEST_SIZE_COL, MODEL_COL], sort=True)
-        .agg(
-            exam_rows=(TEST_ID_COL, "size"),
-            virtual_exams=(TEST_ID_COL, "nunique"),
-            n_students_mean=("n_students", "mean"),
-            linear_qwk_mean=(LINEAR_COL, "mean"),
-            linear_qwk_std=(LINEAR_COL, "std"),
-            bologna_qwk_mean=(BOLOGNA_COL, "mean"),
-            bologna_qwk_std=(BOLOGNA_COL, "std"),
-        )
-        .reset_index()
-    )
-    by_size["model"] = by_size[MODEL_COL].map(display_name)
-    by_size["family"] = by_size[MODEL_COL].map(model_family)
-    by_size["bologna_minus_linear"] = (
-        by_size["bologna_qwk_mean"] - by_size["linear_qwk_mean"]
-    )
-    return by_size
-
+# =========================================================
+# SANITY CHECK
+# =========================================================
 
 def write_sanity_check(
     raw_df: pd.DataFrame,
-    model_summary: pd.DataFrame,
-    by_size: pd.DataFrame,
+    q10_df: pd.DataFrame,
+    per_exam_df: pd.DataFrame,
+    summary: pd.DataFrame,
 ) -> None:
-    present_sizes = sorted(
-        pd.to_numeric(raw_df[TEST_SIZE_COL], errors="coerce")
-        .dropna()
-        .astype(int)
-        .unique()
-        .tolist()
-    )
-
     lines: list[str] = []
+
     lines.append("=" * 100)
-    lines.append("FIGURE 4 SANITY CHECK")
+    lines.append("FIGURE 4 Q10 SANITY CHECK")
     lines.append("=" * 100)
-    lines.append(f"Input parquet: {INPUT_PARQUET.resolve()}")
-    lines.append(f"Raw rows: {len(raw_df)}")
-    lines.append(f"Models: {raw_df[MODEL_COL].nunique()}")
-    lines.append(f"Test sizes present: {present_sizes}")
+    lines.append(f"Script dir:            {SCRIPT_DIR}")
+    lines.append(f"VEX metric dir:        {VEX_METRIC_DIR}")
+    lines.append(f"Input parquet:         {INPUT_PARQUET}")
+    lines.append(f"Output dir:            {OUTPUT_DIR}")
+    lines.append(f"Raw env rows:          {len(raw_df)}")
+    lines.append(f"Q10 env rows:          {len(q10_df)}")
+    lines.append(f"Target test_size:      {TARGET_TEST_SIZE}")
+    lines.append(f"Pass threshold:        {PASS_THRESHOLD}")
+    lines.append(f"Models:                {len(MODEL_COLUMNS)}")
+    lines.append(f"Class counts:          {CLASS_COUNTS}")
+    lines.append(f"Scale types:           {SCALE_TYPES}")
     lines.append("")
-    lines.append("Values used:")
-    lines.append(f"  Left panel  (Absolute Linear Scale): {LINEAR_COL}")
-    lines.append(f"  Right panel (Distribution-Based/Bologna Scale): {BOLOGNA_COL}")
+    lines.append("Absolute threshold scale:")
+    lines.append("  class 0 = fail, normalized score < pass threshold")
+    lines.append("  classes 1..n-1 = equal-width passing categories on [threshold, 1]")
+    lines.append("  n=2 therefore corresponds to fail/pass.")
     lines.append("")
-    lines.append("Metric meaning:")
-    lines.append("  el_qwk_linear_abs is computed by evaluate_dataframe.py on absolute")
-    lines.append("  Swiss-style grades: grade = 1 + 5 * normalized exam score.")
-    lines.append("  el_qwk_bologna is computed by evaluate_dataframe.py on Bologna labels")
-    lines.append("  assigned by the configured passing distribution.")
+    lines.append("Bologna distribution scale:")
+    lines.append("  class 0 = fail, normalized score < pass threshold")
+    lines.append("  classes 1..n-1 = ranked passing categories")
+    lines.append("  passing-category distribution is interpolated from:")
+    lines.append(f"  {cfg.BOLOGNA_PASSING_DISTRIBUTION}")
+    lines.append("  n=6 therefore corresponds to F + A/B/C/D/E-style Bologna.")
     lines.append("")
-    lines.append("Aggregation:")
-    lines.append("  1. Use precomputed exam-level QWK rows per model/test_id/test_size.")
-    lines.append("  2. Average over all virtual exam rows for each model.")
-    lines.append("  3. Sort models by Absolute Linear EL-QWK and reuse that order in both panels.")
+    lines.append("Interpolated Bologna passing distributions:")
+    for n_classes in CLASS_COUNTS:
+        dist = interpolated_bologna_passing_distribution(n_classes - 1)
+        lines.append(
+            f"  n_classes={n_classes}, n_passing={n_classes - 1}: "
+            + ", ".join(f"{x:.6f}" for x in dist)
+        )
     lines.append("")
-    lines.append("Raw row counts by test_size:")
-    counts = (
+    lines.append("Raw counts by test_size:")
+
+    raw_counts = (
         raw_df.groupby(TEST_SIZE_COL)
         .agg(
             rows=(TEST_ID_COL, "size"),
             virtual_exams=(TEST_ID_COL, "nunique"),
-            models=(MODEL_COL, "nunique"),
-            n_students_mean=("n_students", "mean"),
+            students=(STUDENT_ID_COL, "nunique"),
+            questions=(QUESTION_ID_COL, "nunique"),
         )
         .reset_index()
     )
-    lines.append(counts.to_string(index=False))
-    lines.append("")
-    lines.append("Per-model values used in both panels:")
-    table = model_summary.copy()
-    for col in [
-        "n_students_mean",
-        "linear_qwk_mean",
-        "linear_qwk_std",
-        "bologna_qwk_mean",
-        "bologna_qwk_std",
-        "bologna_minus_linear",
-    ]:
-        table[col] = pd.to_numeric(table[col], errors="coerce").round(6)
-    lines.append(table.to_string(index=False))
-    lines.append("")
-    lines.append("Per-model values split by test_size:")
-    by_size_table = by_size.copy()
-    for col in [
-        "n_students_mean",
-        "linear_qwk_mean",
-        "linear_qwk_std",
-        "bologna_qwk_mean",
-        "bologna_qwk_std",
-        "bologna_minus_linear",
-    ]:
-        by_size_table[col] = pd.to_numeric(by_size_table[col], errors="coerce").round(6)
 
-    for test_size, size_df in by_size_table.groupby(TEST_SIZE_COL, sort=True):
-        lines.append("")
-        lines.append(f"[test_size={int(test_size)}]")
-        lines.append(
-            size_df.sort_values("linear_qwk_mean", ascending=False).to_string(index=False)
+    lines.append(raw_counts.to_string(index=False))
+    lines.append("")
+    lines.append("Q10 counts:")
+
+    q10_counts = (
+        q10_df.groupby(TEST_SIZE_COL)
+        .agg(
+            rows=(TEST_ID_COL, "size"),
+            virtual_exams=(TEST_ID_COL, "nunique"),
+            students=(STUDENT_ID_COL, "nunique"),
+            questions=(QUESTION_ID_COL, "nunique"),
         )
+        .reset_index()
+    )
+
+    lines.append(q10_counts.to_string(index=False))
+    lines.append("")
+    lines.append(f"Per-exam metric rows: {len(per_exam_df)}")
+    lines.append("")
+    lines.append("Expected per-exam metric rows:")
+    expected_rows = (
+        len(MODEL_COLUMNS)
+        * q10_df[[TEST_ID_COL, TEST_SIZE_COL]].drop_duplicates().shape[0]
+        * len(CLASS_COUNTS)
+        * len(SCALE_TYPES)
+    )
+    lines.append(f"  {expected_rows}")
+    lines.append("")
+    lines.append("Summary:")
+    lines.append(summary.to_string(index=False))
 
     SANITY_CHECK_TXT.write_text("\n".join(lines), encoding="utf-8")
 
@@ -345,140 +1019,161 @@ def write_sanity_check(
 def style_axes(ax: plt.Axes) -> None:
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.grid(True, axis="x", color="#d9d9d9", linewidth=0.7, alpha=0.85)
+    ax.grid(True, axis="both", color="#d9d9d9", linewidth=0.7, alpha=0.85)
     ax.set_axisbelow(True)
 
 
-def plot_panel(
-    ax: plt.Axes,
-    model_summary: pd.DataFrame,
+def get_top_models(
+    summary: pd.DataFrame,
     metric_mean_col: str,
-    metric_std_col: str,
+    scale_type: str,
+    n_top: int = 8,
+) -> set[str]:
+    last_points = (
+        summary[
+            (summary["scale_type"] == scale_type)
+            & (summary["n_classes"] == MAX_CLASSES)
+        ]
+        .sort_values([metric_mean_col, "model"], ascending=[False, True])
+        .copy()
+    )
+
+    return set(last_points.head(n_top)[MODEL_COL].tolist())
+
+
+def save_single_metric_plot(
+    summary: pd.DataFrame,
+    scale_type: str,
+    metric_mean_col: str,
+    y_label: str,
     title: str,
-    show_y_labels: bool,
+    output_pdf: Path,
+    output_png: Path,
 ) -> None:
-    plot_df = model_summary.copy()
-    plot_df["y_pos"] = np.arange(len(plot_df))
-    colors = [FAMILY_COLORS.get(family, "#666666") for family in plot_df["family"]]
+    fig, ax = plt.subplots(figsize=(10.4, 5.8))
 
-    ax.errorbar(
-        plot_df[metric_mean_col],
-        plot_df["y_pos"],
-        xerr=plot_df[metric_std_col].fillna(0.0),
-        fmt="none",
-        ecolor="#bdbdbd",
-        elinewidth=0.8,
-        capsize=2,
-        alpha=0.8,
-        zorder=1,
-    )
-    ax.scatter(
-        plot_df[metric_mean_col],
-        plot_df["y_pos"],
-        s=48,
-        color=colors,
-        edgecolor="black",
-        linewidth=0.4,
-        zorder=2,
+    plot_df = summary[summary["scale_type"] == scale_type].copy()
+
+    top_models = get_top_models(
+        summary=summary,
+        metric_mean_col=metric_mean_col,
+        scale_type=scale_type,
+        n_top=8,
     )
 
-    ax.set_xlim(-0.02, 1.0)
-    ax.set_ylim(len(plot_df) - 0.5, -0.5)
-    ax.set_xlabel("Exam-level QWK")
+    for model_col, model_df in plot_df.groupby(MODEL_COL, sort=False):
+        model_df = model_df.sort_values("n_classes")
+
+        family = str(model_df["family"].iloc[0])
+        color = FAMILY_COLORS.get(family, "#666666")
+        linestyle = FAMILY_LINESTYLES.get(family, "-")
+        model_name = str(model_df["model"].iloc[0])
+        is_top = model_col in top_models
+
+        ax.plot(
+            model_df["n_classes"],
+            model_df[metric_mean_col],
+            marker="o",
+            markersize=4 if is_top else 3,
+            linewidth=1.8 if is_top else 0.9,
+            alpha=0.95 if is_top else 0.35,
+            color=color,
+            linestyle=linestyle,
+            label=model_name,
+        )
+
+    ax.set_xlabel("Grade-scale granularity (number of final classes)")
+    ax.set_ylabel(y_label)
     ax.set_title(title)
 
-    if show_y_labels:
-        ax.set_yticks(plot_df["y_pos"])
-        ax.set_yticklabels(plot_df["model"])
-    else:
-        ax.set_yticks(plot_df["y_pos"])
-        ax.tick_params(axis="y", labelleft=False, length=0)
+    ax.set_xticks(CLASS_COUNTS)
+    ax.set_xticklabels([str(x) for x in CLASS_COUNTS])
+
+    y_values = pd.to_numeric(plot_df[metric_mean_col], errors="coerce").dropna()
+
+    if not y_values.empty:
+        y_min = max(0.0, float(y_values.min()) - 0.05)
+        y_max = min(1.0, float(y_values.max()) + 0.04)
+        ax.set_ylim(y_min, y_max)
 
     style_axes(ax)
 
-
-def add_family_legend(fig: plt.Figure) -> None:
-    handles = [
-        plt.Line2D(
-            [0],
-            [0],
-            marker="o",
-            linestyle="",
-            markerfacecolor=color,
-            markeredgecolor="black",
-            markeredgewidth=0.4,
-            markersize=6,
-            label=family,
-        )
-        for family, color in FAMILY_COLORS.items()
-    ]
-    fig.legend(
-        handles=handles,
-        frameon=False,
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles,
+        labels,
         loc="lower center",
-        ncol=4,
-        bbox_to_anchor=(0.5, -0.01),
+        bbox_to_anchor=(0.5, -0.34),
+        ncol=6,
+        frameon=False,
     )
 
-
-def save_plots(model_summary: pd.DataFrame) -> None:
-    fig, axes = plt.subplots(
-        nrows=1,
-        ncols=2,
-        figsize=(10.2, 6.0),
-        sharey=True,
-        gridspec_kw={"width_ratios": [1.15, 1.0]},
-    )
-
-    plot_panel(
-        ax=axes[0],
-        model_summary=model_summary,
-        metric_mean_col="linear_qwk_mean",
-        metric_std_col="linear_qwk_std",
-        title="(a) Absolute Linear Scale",
-        show_y_labels=True,
-    )
-    plot_panel(
-        ax=axes[1],
-        model_summary=model_summary,
-        metric_mean_col="bologna_qwk_mean",
-        metric_std_col="bologna_qwk_std",
-        title="(b) Distribution-Based Scale",
-        show_y_labels=False,
-    )
-    add_family_legend(fig)
-    fig.tight_layout(rect=(0, 0.05, 1, 1), w_pad=1.8)
-    fig.savefig(COMBINED_PDF, bbox_inches="tight")
-    fig.savefig(COMBINED_PNG, dpi=300, bbox_inches="tight")
+    fig.tight_layout(rect=(0, 0.14, 1, 1))
+    fig.savefig(output_pdf, bbox_inches="tight")
+    fig.savefig(output_png, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(5.8, 6.0))
-    plot_panel(
-        ax=ax,
-        model_summary=model_summary,
-        metric_mean_col="linear_qwk_mean",
-        metric_std_col="linear_qwk_std",
-        title="(a) Absolute Linear Scale",
-        show_y_labels=True,
-    )
-    fig.tight_layout()
-    fig.savefig(LINEAR_PDF, bbox_inches="tight")
-    fig.savefig(LINEAR_PNG, dpi=300, bbox_inches="tight")
-    plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(5.8, 6.0))
-    plot_panel(
-        ax=ax,
-        model_summary=model_summary,
-        metric_mean_col="bologna_qwk_mean",
-        metric_std_col="bologna_qwk_std",
-        title="(b) Distribution-Based Scale",
-        show_y_labels=True,
+def save_plots(summary: pd.DataFrame) -> None:
+    save_single_metric_plot(
+        summary=summary,
+        scale_type=SCALE_ABSOLUTE,
+        metric_mean_col="el_acc_mean",
+        y_label="Mean exam-level accuracy",
+        title=f"Q{TARGET_TEST_SIZE} Absolute EL-Acc vs. Grade-Scale Granularity",
+        output_pdf=FIGURE_ABS_ACC_PDF,
+        output_png=FIGURE_ABS_ACC_PNG,
     )
-    fig.tight_layout()
-    fig.savefig(DISTRIBUTION_PDF, bbox_inches="tight")
-    fig.savefig(DISTRIBUTION_PNG, dpi=300, bbox_inches="tight")
-    plt.close(fig)
+
+    save_single_metric_plot(
+        summary=summary,
+        scale_type=SCALE_ABSOLUTE,
+        metric_mean_col="el_qwk_mean",
+        y_label="Mean exam-level QWK",
+        title=f"Q{TARGET_TEST_SIZE} Absolute EL-QWK vs. Grade-Scale Granularity",
+        output_pdf=FIGURE_ABS_QWK_PDF,
+        output_png=FIGURE_ABS_QWK_PNG,
+    )
+
+    save_single_metric_plot(
+        summary=summary,
+        scale_type=SCALE_ABSOLUTE,
+        metric_mean_col="el_tau_mean",
+        y_label=r"Mean exam-level $\tau_b$",
+        title=rf"Q{TARGET_TEST_SIZE} Absolute EL-$\tau_b$ vs. Grade-Scale Granularity",
+        output_pdf=FIGURE_ABS_TAU_PDF,
+        output_png=FIGURE_ABS_TAU_PNG,
+    )
+
+    save_single_metric_plot(
+        summary=summary,
+        scale_type=SCALE_BOLOGNA,
+        metric_mean_col="el_acc_mean",
+        y_label="Mean exam-level accuracy",
+        title=f"Q{TARGET_TEST_SIZE} Bologna EL-Acc vs. Grade-Scale Granularity",
+        output_pdf=FIGURE_BOL_ACC_PDF,
+        output_png=FIGURE_BOL_ACC_PNG,
+    )
+
+    save_single_metric_plot(
+        summary=summary,
+        scale_type=SCALE_BOLOGNA,
+        metric_mean_col="el_qwk_mean",
+        y_label="Mean exam-level QWK",
+        title=f"Q{TARGET_TEST_SIZE} Bologna EL-QWK vs. Grade-Scale Granularity",
+        output_pdf=FIGURE_BOL_QWK_PDF,
+        output_png=FIGURE_BOL_QWK_PNG,
+    )
+
+    save_single_metric_plot(
+        summary=summary,
+        scale_type=SCALE_BOLOGNA,
+        metric_mean_col="el_tau_mean",
+        y_label=r"Mean exam-level $\tau_b$",
+        title=rf"Q{TARGET_TEST_SIZE} Bologna EL-$\tau_b$ vs. Grade-Scale Granularity",
+        output_pdf=FIGURE_BOL_TAU_PDF,
+        output_png=FIGURE_BOL_TAU_PNG,
+    )
 
 
 # =========================================================
@@ -486,54 +1181,86 @@ def save_plots(model_summary: pd.DataFrame) -> None:
 # =========================================================
 
 def main() -> None:
-    if not INPUT_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Exam-level metrics parquet not found: {INPUT_PARQUET.resolve()}"
-        )
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    for stale_path in STALE_OUTPUTS:
-        if stale_path.exists():
-            try:
-                stale_path.unlink()
-            except PermissionError:
-                print(f"Warning: could not remove locked stale file: {stale_path}")
 
     print("=" * 100)
-    print("CREATE FIGURE 4: LINEAR VS BOLOGNA EL-QWK")
+    print("CREATE Q10 GRANULARITY PLOTS")
     print("=" * 100)
-    print(f"Input parquet: {INPUT_PARQUET.resolve()}")
-    print(f"Output folder: {OUTPUT_DIR.resolve()}")
+    print(f"Script dir:            {SCRIPT_DIR}")
+    print(f"VEX metric dir:        {VEX_METRIC_DIR}")
+    print(f"Input parquet:         {INPUT_PARQUET}")
+    print(f"Output folder:         {OUTPUT_DIR}")
+    print(f"Target test_size:      {TARGET_TEST_SIZE}")
+    print(f"Pass threshold:        {PASS_THRESHOLD}")
+    print(f"Class counts:          {CLASS_COUNTS}")
+    print(f"Scale types:           {SCALE_TYPES}")
+    print(f"Models:                {len(MODEL_COLUMNS)}")
     print("")
 
     raw_df = read_parquet(INPUT_PARQUET)
     validate_input(raw_df)
+    assert_no_duplicate_exam_student_question_pairs(raw_df)
 
-    model_summary = compute_model_summary(raw_df)
-    by_size = compute_by_test_size(raw_df)
+    q10_df = raw_df[
+        pd.to_numeric(raw_df[TEST_SIZE_COL], errors="coerce") == TARGET_TEST_SIZE
+    ].copy()
 
-    model_summary.to_csv(DATA_CSV, index=False, encoding="utf-8")
-    by_size.to_csv(BY_SIZE_CSV, index=False, encoding="utf-8")
+    if q10_df.empty:
+        raise RuntimeError(
+            f"No rows found for test_size == {TARGET_TEST_SIZE} in {INPUT_PARQUET}"
+        )
+
+    print(f"Raw rows: {len(raw_df)}")
+    print(f"Q{TARGET_TEST_SIZE} rows: {len(q10_df)}")
+    print("")
+
+    if PER_EXAM_CSV.exists() and not RECOMPUTE_PER_EXAM_METRICS:
+        print(f"Loading cached per-exam metrics: {PER_EXAM_CSV}")
+        per_exam_df = pd.read_csv(PER_EXAM_CSV)
+    else:
+        print("Computing per-exam granularity metrics...")
+        per_exam_df = compute_granularity_metrics(q10_df)
+        per_exam_df.to_csv(PER_EXAM_CSV, index=False, encoding="utf-8")
+
+    if per_exam_df.empty:
+        raise RuntimeError("No per-exam metric rows were computed.")
+
+    summary = summarize_metrics(per_exam_df)
+
+    summary.to_csv(SUMMARY_CSV, index=False, encoding="utf-8")
+
     write_sanity_check(
         raw_df=raw_df,
-        model_summary=model_summary,
-        by_size=by_size,
+        q10_df=q10_df,
+        per_exam_df=per_exam_df,
+        summary=summary,
     )
-    save_plots(model_summary=model_summary)
 
-    print("Saved:")
+    save_plots(summary=summary)
+
+    print("")
+    print("Saved files:")
     for path in [
-        COMBINED_PDF,
-        COMBINED_PNG,
-        LINEAR_PDF,
-        LINEAR_PNG,
-        DISTRIBUTION_PDF,
-        DISTRIBUTION_PNG,
-        DATA_CSV,
-        BY_SIZE_CSV,
+        FIGURE_ABS_ACC_PDF,
+        FIGURE_ABS_ACC_PNG,
+        FIGURE_ABS_QWK_PDF,
+        FIGURE_ABS_QWK_PNG,
+        FIGURE_ABS_TAU_PDF,
+        FIGURE_ABS_TAU_PNG,
+        FIGURE_BOL_ACC_PDF,
+        FIGURE_BOL_ACC_PNG,
+        FIGURE_BOL_QWK_PDF,
+        FIGURE_BOL_QWK_PNG,
+        FIGURE_BOL_TAU_PDF,
+        FIGURE_BOL_TAU_PNG,
+        SUMMARY_CSV,
+        PER_EXAM_CSV,
         SANITY_CHECK_TXT,
     ]:
-        print(f"  {path.resolve()}")
+        print(f"  {path}")
+
+    print("")
+    print("DONE")
 
 
 if __name__ == "__main__":

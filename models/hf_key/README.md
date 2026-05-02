@@ -7,6 +7,10 @@ Its purpose is to provide a simple filesystem location for a Hugging Face access
 - [../joint_models/gemma/prepare_gemma.py](../joint_models/gemma/prepare_gemma.py#L1)
 - [../joint_models/llama/prepare_gemma.py](../joint_models/llama/prepare_gemma.py#L1)
 
+Encoder models under `models/encoder/` use Hugging Face downloads as well, but
+they do not normally require this local token helper unless the selected model
+repository is gated.
+
 ## Files
 
 This directory contains:

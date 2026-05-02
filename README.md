@@ -1,64 +1,40 @@
 # VEX: Virtual Exam Benchmark for Automatic Short Answer Grading
 
-<p align="center">
-  A research release for <b>Automatic Short Answer Grading (ASAG)</b> with
-  a real-world dataset, human annotation workflows, model baselines, and
-  a virtual-exam evaluation pipeline.
-</p>
+VEX is a research release for Automatic Short Answer Grading (ASAG). It combines
+a real-world short-answer dataset, human annotation workflows, model baselines,
+and a virtual-exam evaluation pipeline that reports both item-level and
+exam-level behavior.
 
-<p align="center">
-  <a href="./dataset">Dataset</a> |
-  <a href="./models">Models</a> |
-  <a href="./vex_metric">VEX Metric</a> |
-  <a href="./annotation">Annotation</a>
-</p>
+Main entry points:
 
-## News
+- [Dataset](./dataset)
+- [Models](./models)
+- [Results](./results)
+- [VEX Metric](./vex_metric)
+- [Annotation](./annotation)
 
-- `2026-04`: Initial repository cleanup and release documentation for the public VEX research snapshot.
-- `2026-04`: Added dataset release metadata, changelog, and Croissant metadata for the stable VEX dataset line.
-- `2026-04`: Added model-family documentation and task-specific dataset cards for the accompanying benchmark assets.
+## Current Snapshot
+
+- The main public dataset release is stored under `dataset/vex/v1_0_release/`.
+- Additional task-specific datasets are stored under `dataset/additional/`.
+- Encoder models now live under `models/encoder/`.
+- The VEX metric input is `dataset/additional/vex_metric_dataset/merged_model_predictions.parquet`.
+- The current VEX evaluation configuration samples 500 virtual exams for test sizes `5`, `10`, `15`, and `20`.
+- Generated result folders under `results/` and generated VEX environments under `vex_metric/vex_test_env/` are treated as reproducible outputs and should not be committed.
 
 ## Overview
 
-This repository contains the research release for **VEX**, a benchmark and evaluation framework for
-**Automatic Short Answer Grading (ASAG)**.
-
 The project combines four parts:
 
-- a real-world short-answer dataset release,
-- human annotation and audit workflows,
-- baseline and neural grading models,
-- a virtual-exam evaluation pipeline for item-level and exam-level benchmarking.
+- a curated short-answer dataset release,
+- human annotation, consensus, and audit workflows,
+- classical, encoder, and joint LLM grading models,
+- a virtual-exam evaluation protocol for item-level and exam-level benchmarking.
 
-The main dataset release currently centers on **ASAG2026**, which contains approximately **31,500 student answers**
-with structured metadata, human and silver labels, model predictions, and derived resources for feedback and evaluation studies.
-
-## What Is New in VEX?
-
-### 1. A real-world ASAG dataset release
-
-VEX is built around a real educational short-answer corpus rather than a synthetic benchmark.
-The dataset release includes question text, student answers, grades, metadata, and derived artifacts for downstream experiments.
-
-### 2. Human-grounded gold evaluation data
-
-The repository documents the dual-annotation, consensus, and manual-audit workflow used to create a frozen gold subset for trustworthy evaluation.
-
-### 3. Multiple model families in one release
-
-The modeling code spans:
-
-- TF-IDF baselines,
-- prior and template baselines,
-- encoder-only Transformer regressors,
-- joint LLM-based grading and feedback models.
-
-### 4. Virtual-exam evaluation instead of item-only reporting
-
-Beyond standard item-level metrics, VEX evaluates models in a **virtual exam** setting, where predictions are aggregated over sampled exams and compared at the student outcome level.
-
-This is intended to reflect educational use more closely than isolated answer-level scoring alone.
+The dataset is based on university-level short-answer responses. The stable
+release contains answer text, question metadata, human and silver labels, split
+information, model predictions, and derived artifacts for feedback and
+evaluation studies.
 
 ## Repository Structure
 
@@ -72,124 +48,107 @@ VEX/
 │   └── vex/
 ├── feedback/
 ├── models/
+│   ├── classical_asag/
+│   ├── encoder/
+│   ├── joint_models/
+│   ├── prior_template/
+│   └── hf_key/
 ├── results/
 └── vex_metric/
 ```
 
-## Repository Guide
-
-### Dataset
+## Dataset
 
 The dataset release lives in [dataset/](./dataset).
 
-It includes:
+Important folders:
 
-- the main VEX dataset lineage from raw export to release-ready tables,
-- metadata such as the dataset changelog and license,
-- additional derived datasets for audit analysis, feedback evaluation, teacher selection, and VEX metric experiments.
+- `dataset/vex/`: main raw-to-release dataset lineage.
+- `dataset/vex/v1_0_release/`: frozen public release with `v1_0_stable.parquet`, `train.parquet`, and `test.parquet`.
+- `dataset/additional/`: derived datasets for audit analysis, feedback studies, teacher selection, and VEX metric evaluation.
 
 Start here:
 
 - [dataset/README.md](./dataset/README.md)
 - [dataset/vex/README.md](./dataset/vex/README.md)
+- [dataset/additional/README.md](./dataset/additional/README.md)
 
-### Annotation
+## Annotation
 
 The annotation workflows live in [annotation/](./annotation).
 
-These folders document:
+They document:
 
-- how the initial gold subset was sampled,
-- how dual annotation and consensus were performed,
-- how audit decisions were incorporated,
-- how the feedback-analysis subset was sampled.
+- initial gold-subset sampling,
+- dual human annotation,
+- consensus and manual audit,
+- feedback-analysis sampling.
 
 Start here:
 
 - [annotation/dataset/README.md](./annotation/dataset/README.md)
 - [annotation/feedback/README.md](./annotation/feedback/README.md)
 
-### Models
+## Models
 
 The released model code lives in [models/](./models).
 
-This folder contains the baseline and experimental grading pipelines used throughout the project, including:
+The model families are:
 
-- sparse TF-IDF regressors,
-- simple prior/template baselines,
-- BERT and mDeBERTa regressors,
-- instruction-tuned LLM graders for grade and feedback generation.
+- TF-IDF baselines,
+- prior and template baselines,
+- BERT and mDeBERTa encoder regressors,
+- joint LLM graders for grade and feedback generation.
 
 Start here:
 
 - [models/README.md](./models/README.md)
 
-### VEX Metric
+## VEX Metric
 
 The virtual-exam evaluation pipeline lives in [vex_metric/](./vex_metric).
 
-It creates reproducible sampled exam environments, builds joined evaluation tables, and computes both item-level and exam-level metrics.
+It creates reproducible sampled exam environments, builds joined evaluation
+tables, computes item-level metrics on the original held-out input, and computes
+exam-level metrics after aggregating question-level scores into virtual exams.
 
-Start here:
-
-- [vex_metric/README.md](./vex_metric/README.md)
-
-## Quick Start
-
-### 1. Inspect the dataset release
-
-Review the dataset documentation first:
-
-```bash
-cd dataset
-```
-
-Key entry points:
-
-- `dataset/README.md`
-- `dataset/vex/README.md`
-- `dataset/vex/metadata/CHANGE_LOG.md`
-
-### 2. Inspect or run baseline models
-
-Model scripts are organized by family under `models/`.
-Most scripts expect a local parquet release file and use in-file path constants that should be checked before execution.
-
-### 3. Run the virtual-exam evaluation
-
-From the repository root:
+Run the full pipeline from the repository root:
 
 ```bash
 python vex_metric/run_vex.py
 ```
 
-The evaluation pipeline creates a reproducible virtual test environment and writes metric reports under `vex_metric/vex_test_env/`.
+Start here:
+
+- [vex_metric/README.md](./vex_metric/README.md)
+
+## Results
+
+Paper-facing analysis scripts live in [results/](./results).
+
+They generate dataset statistics, confusion matrices, significance tests, and
+the figure data/plots used for item-vs-exam and grading-scale analyses.
+
+Start here:
+
+- [results/README.md](./results/README.md)
 
 ## Release Scope
 
-This repository is a **research release**, not a packaged production framework.
+This repository is a research release, not a packaged production framework.
+Some scripts intentionally preserve the experimental workspace structure used
+during the project. The README files document those limitations where they
+matter for reproduction.
 
-The goal is to make the project inspectable and reproducible by releasing:
+## License
 
-- the dataset lineage and metadata,
-- the annotation methodology,
-- the modeling scripts used in experiments,
-- the evaluation pipeline used for virtual-exam benchmarking.
+Code licensing is described in [LICENSE](./LICENSE).
 
-Some directories intentionally preserve the original experimental workspace structure. Where scripts or helpers are not fully polished, the corresponding README files document those limitations explicitly.
+Dataset licensing is documented in
+[dataset/vex/metadata/DATA_LICENSE.md](./dataset/vex/metadata/DATA_LICENSE.md).
+The dataset license also covers the task-specific datasets under
+`dataset/additional/`.
 
 ## Citation
 
 Citation details will be added after paper acceptance.
-
-## License
-
-Code licensing is described in the repository [LICENSE](./LICENSE).
-
-Dataset licensing for the VEX release is documented separately in:
-
-- [dataset/vex/metadata/DATA_LICENSE.md](./dataset/vex/metadata/DATA_LICENSE.md)
-
-## Acknowledgment
-
-If you use this repository, please cite the accompanying paper once bibliographic details are available and reference the released VEX dataset and evaluation framework accordingly.

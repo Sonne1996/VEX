@@ -124,7 +124,7 @@ OUTPUT_PARQUET = Path(TEST_ENV_FOLDER) / TESTS_DATAFRAME / "dataframe_env.parque
 N_RUNS = 500
 
 # Number of questions per sampled test
-TEST_SIZES = [10, 15]
+TEST_SIZES = [5, 10, 15, 20]
 
 # Random seed for reproducibility
 RANDOM_SEED = 4242
@@ -148,9 +148,7 @@ MODEL_COLUMNS = [
     "new_grade_gemma_e4_ft",
 
     # Transformer
-    "grade_bert_base",
     "grade_bert_ft",
-    "grade_mdeberta_base",
     "grade_mdeberta_ft",
 
     # Prior / Tempalte

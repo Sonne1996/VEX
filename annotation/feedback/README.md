@@ -4,6 +4,9 @@ This directory documents the sampling procedure used to create the feedback-anal
 
 The current documentation covers the sampling design only. A fuller description of the feedback annotation protocol, rating dimensions, and adjudication procedure will be added in a later revision.
 
+The corresponding released feedback dataset is documented in
+[../../dataset/additional/feedback_dataset/README.md](../../dataset/additional/feedback_dataset/README.md#L1).
+
 ## Source Data
 
 The feedback sample was derived from `merged_feedback_long.parquet`, a long-format table containing model-level feedback generations aligned to base answers.

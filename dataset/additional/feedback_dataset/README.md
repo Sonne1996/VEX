@@ -50,6 +50,8 @@ Because the data is long-format, the same answer may appear multiple times with 
 
 - The presence of `model_feedback` distinguishes this dataset from the benchmark-oriented VEX metric dataset.
 - From the project context, this dataset is best interpreted as a paper-specific artifact for feedback studies rather than the main benchmark input.
+- Croissant metadata is provided in `croissant_metadata.json`.
+- Licensing is covered by [../../vex/metadata/DATA_LICENSE.md](../../vex/metadata/DATA_LICENSE.md#L1), which also applies to the additional derived datasets.
 
 ## Provenance Note
 

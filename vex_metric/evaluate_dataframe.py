@@ -61,6 +61,29 @@ QUESTION_ID_COL = "question_id"
 STUDENT_ID_COL = "member_id"
 ANSWER_ID_COL = "answer_id"
 
+EXAM_LEVEL_COUNT_COLUMNS = [
+    "n_students",
+    "students_raw",
+    "students_complete",
+    "students_dropped_incomplete",
+    "students_missing_human",
+    "students_missing_prediction",
+]
+
+EXAM_LEVEL_METRIC_COLUMNS = [
+    "el_tau_b",
+    "el_acc_linear_abs",
+    "el_qwk_linear_abs",
+    "el_pass_acc_linear_abs",
+    "el_pass_qwk_linear_abs",
+    "el_acc_linear_mean",
+    "el_qwk_linear_mean",
+    "el_pass_acc_linear_mean",
+    "el_pass_qwk_linear_mean",
+    "el_acc_bologna",
+    "el_qwk_bologna",
+]
+
 # In dataframe_env.parquet
 HUMAN_GRADE_COL = "human_grade"
 
@@ -112,6 +135,22 @@ def _input_original_parquet() -> Path:
 
 def _output_report_path() -> Path:
     return _env_metrics_dir() / OUTPUT_REPORT_FILE
+
+
+def _exam_results_path() -> Path:
+    return _env_metrics_dir() / "exam_level_precomputed_metrics.parquet"
+
+
+def _exam_summary_by_test_size_path() -> Path:
+    return _env_metrics_dir() / "exam_level_summary_by_test_size.parquet"
+
+
+def _exam_summary_all_path() -> Path:
+    return _env_metrics_dir() / "exam_level_summary_all.parquet"
+
+
+def _env_exam_metrics_wide_path() -> Path:
+    return _dataframe_dir() / "dataframe_env_exam_metrics_wide.parquet"
 
 
 def _linear_size_dir(test_number: int | str, test_size: int) -> Path:
@@ -1296,6 +1335,149 @@ def _precompute_exam_results(df_env: pd.DataFrame) -> pd.DataFrame:
     return result_df
 
 
+def _build_exam_metrics_wide_by_test(exam_results_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compact env-level dataframe with one row per virtual exam.
+
+    The source table is long, one row per (test_id, test_size, model_col). For
+    quick plot loading this pivots those metrics into wide columns while keeping
+    the dataframe at test granularity rather than repeating metrics on every
+    answer row in dataframe_env.parquet.
+    """
+    if exam_results_df.empty:
+        return pd.DataFrame(columns=[TEST_ID_COL, TEST_SIZE_COL])
+
+    value_cols = EXAM_LEVEL_COUNT_COLUMNS + EXAM_LEVEL_METRIC_COLUMNS
+    required = [TEST_ID_COL, TEST_SIZE_COL, "model_col", *value_cols]
+    missing = [col for col in required if col not in exam_results_df.columns]
+    if missing:
+        raise ValueError(
+            f"Exam-level result columns missing for wide env export: {missing}"
+        )
+
+    df = exam_results_df[required].copy()
+    df["model_token"] = df["model_col"].map(_safe_file_token)
+
+    wide = df.pivot_table(
+        index=[TEST_ID_COL, TEST_SIZE_COL],
+        columns="model_token",
+        values=value_cols,
+        aggfunc="first",
+    )
+
+    wide.columns = [
+        f"{model_token}__{metric_col}"
+        for metric_col, model_token in wide.columns.to_flat_index()
+    ]
+
+    wide = wide.reset_index()
+    wide[TEST_SIZE_COL] = pd.to_numeric(
+        wide[TEST_SIZE_COL],
+        errors="coerce",
+    ).astype("Int64")
+
+    return wide.sort_values([TEST_SIZE_COL, TEST_ID_COL]).reset_index(drop=True)
+
+
+def _aggregate_exam_results_for_plots(
+    exam_results_df: pd.DataFrame,
+    group_cols: list[str],
+) -> pd.DataFrame:
+    """
+    Average exam-level metrics after they were computed per virtual exam run.
+
+    This is the table plot scripts should normally consume:
+    first compute metrics per (test_id, test_size, model), then average over the
+    N virtual runs. That avoids each figure reimplementing the same aggregation.
+    """
+    if exam_results_df.empty:
+        return pd.DataFrame(columns=group_cols)
+
+    value_cols = EXAM_LEVEL_COUNT_COLUMNS + EXAM_LEVEL_METRIC_COLUMNS
+    required = [*group_cols, TEST_ID_COL, *value_cols]
+    missing = [col for col in required if col not in exam_results_df.columns]
+    if missing:
+        raise ValueError(
+            f"Exam-level result columns missing for summary export: {missing}"
+        )
+
+    df = exam_results_df[required].copy()
+
+    for col in value_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    grouped = df.groupby(group_cols, dropna=False)
+
+    summary = grouped.agg(
+        exam_instances=(TEST_ID_COL, "count"),
+        n_runs=(TEST_ID_COL, "nunique"),
+    ).reset_index()
+
+    for col in EXAM_LEVEL_COUNT_COLUMNS:
+        stats = grouped[col].agg(["mean", "std", "sum"]).reset_index()
+        stats = stats.rename(
+            columns={
+                "mean": f"{col}_mean",
+                "std": f"{col}_std",
+                "sum": f"{col}_sum",
+            }
+        )
+        summary = summary.merge(stats, on=group_cols, how="left")
+
+    for col in EXAM_LEVEL_METRIC_COLUMNS:
+        stats = grouped[col].agg(["mean", "std", "count"]).reset_index()
+        stats = stats.rename(
+            columns={
+                "mean": f"{col}_mean",
+                "std": f"{col}_std",
+                "count": f"{col}_n",
+            }
+        )
+        missing_counts = grouped[col].apply(lambda s: int(s.isna().sum())).reset_index()
+        missing_counts = missing_counts.rename(columns={col: f"{col}_missing"})
+
+        summary = summary.merge(stats, on=group_cols, how="left")
+        summary = summary.merge(missing_counts, on=group_cols, how="left")
+
+    return summary.sort_values(group_cols).reset_index(drop=True)
+
+
+def _write_exam_metric_dataframes(
+    exam_results_df: pd.DataFrame,
+) -> dict[str, Path]:
+    _env_metrics_dir().mkdir(parents=True, exist_ok=True)
+    _dataframe_dir().mkdir(parents=True, exist_ok=True)
+
+    exam_results_path = _exam_results_path()
+    summary_by_test_size_path = _exam_summary_by_test_size_path()
+    summary_all_path = _exam_summary_all_path()
+    env_exam_metrics_wide_path = _env_exam_metrics_wide_path()
+
+    exam_results_df.to_parquet(exam_results_path, index=False)
+
+    summary_by_test_size = _aggregate_exam_results_for_plots(
+        exam_results_df=exam_results_df,
+        group_cols=["model_col", TEST_SIZE_COL],
+    )
+    summary_by_test_size.to_parquet(summary_by_test_size_path, index=False)
+
+    summary_all = _aggregate_exam_results_for_plots(
+        exam_results_df=exam_results_df,
+        group_cols=["model_col"],
+    )
+    summary_all.to_parquet(summary_all_path, index=False)
+
+    env_exam_metrics_wide = _build_exam_metrics_wide_by_test(exam_results_df)
+    env_exam_metrics_wide.to_parquet(env_exam_metrics_wide_path, index=False)
+
+    return {
+        "exam_results": exam_results_path,
+        "summary_by_test_size": summary_by_test_size_path,
+        "summary_all": summary_all_path,
+        "env_exam_metrics_wide": env_exam_metrics_wide_path,
+    }
+
+
 def _empty_exam_metrics() -> dict[str, float]:
     return {
         "exam_instances": 0,
@@ -1773,10 +1955,11 @@ def main() -> None:
     print("Precomputing exam-level metrics...")
     exam_results_df = _precompute_exam_results(df_env)
 
-    exam_results_path = _env_metrics_dir() / "exam_level_precomputed_metrics.parquet"
-    exam_results_df.to_parquet(exam_results_path, index=False)
+    exam_metric_paths = _write_exam_metric_dataframes(exam_results_df)
 
-    print(f"Precomputed exam metrics saved to: {exam_results_path.resolve()}")
+    print("Precomputed exam metric dataframes saved to:")
+    for label, path in exam_metric_paths.items():
+        print(f"  {label}: {path.resolve()}")
 
     print("")
     print("Writing linear/Bologna sanity-check exports...")

@@ -1,6 +1,6 @@
 # Data License
 
-The VEX dataset release in this directory, including the `v0.3_stable` dataset artifact and its accompanying metadata, is released under the **Creative Commons Attribution 4.0 International License (CC BY 4.0)**.
+The VEX dataset release, including the main release artifacts in `dataset/vex/`, the additional derived dataset artifacts in `dataset/additional/`, and the accompanying metadata, is released under the **Creative Commons Attribution 4.0 International License (CC BY 4.0)** unless a file explicitly states otherwise.
 
 License URL:
 
@@ -31,14 +31,21 @@ At minimum, attribution should include:
 
 ## Scope of This License
 
-This license applies to the released dataset content in `dataset/vex/` and its metadata files unless a file explicitly states otherwise.
+This license applies to:
+
+- the main VEX dataset releases in `dataset/vex/`,
+- the release metadata in `dataset/vex/metadata/`,
+- the additional derived dataset artifacts in `dataset/additional/`, including benchmark, audit, feedback, and teacher-selection datasets derived from the stable VEX release.
+
+The additional datasets do not require separate license files as long as they are distributed as part of this repository-level VEX dataset release and do not declare a different license.
 
 It does **not automatically apply** to:
 
 - third-party model weights,
 - external APIs or services used during dataset construction,
 - software dependencies that carry their own licenses,
-- external source systems that are not redistributed as part of this release.
+- external source systems that are not redistributed as part of this release,
+- any future third-party datasets added to the repository that explicitly carry a different license.
 
 ## Privacy and Responsible Use
 

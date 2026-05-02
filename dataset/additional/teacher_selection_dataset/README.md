@@ -70,6 +70,8 @@ This dataset is meant for analyses such as:
 
 - The exact teacher-selection workflow is only partially documented in the public release, but the column structure clearly reflects a gold-set teacher-evaluation stage.
 - Compared with the final VEX metric dataset, this file keeps more raw generation and audit metadata and fewer finalized benchmark prediction columns.
+- Croissant metadata is provided in `croissant_metadata.json`.
+- Licensing is covered by [../../vex/metadata/DATA_LICENSE.md](../../vex/metadata/DATA_LICENSE.md#L1), which also applies to the additional derived datasets.
 
 ## Provenance Note
 

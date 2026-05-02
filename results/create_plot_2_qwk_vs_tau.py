@@ -2,10 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-Create Figure 2 style item-level plots for VEX.
+Create Figure 2 style item-level vs. exam-level plots for VEX.
 
-Input:
-    dataset/additional/vex_metric_dataset/merged_model_predictions.parquet
+Run from:
+    VEX/results/
+
+Example:
+    python create_plot_2_item_vs_exam.py
+
+Inputs:
+    - cfg.INPUT_PARQUET
+    - cfg.TEST_ENV_FOLDER / cfg.TEST_ENV_METRICS_FOLDER / exam_level_precomputed_metrics.parquet
 
 The item-level data preparation mirrors vex_metric/evaluate_dataframe.py:
     - read cfg.INPUT_PARQUET
@@ -19,18 +26,31 @@ The item-level data preparation mirrors vex_metric/evaluate_dataframe.py:
 Additionally, this script filters to label_type == "gold" when that column is
 available, because the figure should evaluate against gold labels only.
 
-Metrics:
-    - item_mse: mean squared error over gold item labels
-    - item_qwk: quadratic weighted kappa over gold item labels
-    - item_tau_b: Kendall's tau-b over gold item labels
+Metrics used:
+    Item level:
+        - item_mse
+        - item_qwk
+        - item_tau_b (sanity reference only)
+
+    Exam level (means over virtual exams):
+        - el_qwk_linear_abs
+        - el_qwk_bologna
+        - el_acc_linear_abs
+        - el_acc_bologna
 
 Outputs:
-    results/figures_plot_2/figure_2_qwk_vs_tau.pdf
-    results/figures_plot_2/figure_2_qwk_vs_tau.png
-    results/figures_plot_2/figure_2_scatter_item_qwk_vs_item_tau.pdf
-    results/figures_plot_2/figure_2_rank_shift_item_qwk_vs_item_tau.pdf
-    results/figures_plot_2/figure_2_qwk_vs_tau_data.csv
-    results/figures_plot_2/figure_2_sanity_check.txt
+    results/figures_plot_2/
+        figure_2_item_qwk_vs_el_qwk_linear_bologna.pdf
+        figure_2_item_qwk_vs_el_qwk_linear_bologna.png
+
+        figure_2_item_mse_vs_el_qwk_linear_bologna.pdf
+        figure_2_item_mse_vs_el_qwk_linear_bologna.png
+
+        figure_2_item_mse_vs_el_acc_linear_bologna.pdf
+        figure_2_item_mse_vs_el_acc_linear_bologna.png
+
+        figure_2_item_vs_exam_data.csv
+        figure_2_sanity_check.txt
 """
 
 from __future__ import annotations
@@ -59,8 +79,13 @@ plt.rcParams.update(
 )
 
 
+# =========================================================
+# PATH SETUP
+# =========================================================
+
 SCRIPT_PATH = Path(__file__).resolve()
-PROJECT_ROOT = SCRIPT_PATH.parents[1]
+SCRIPT_DIR = SCRIPT_PATH.parent
+PROJECT_ROOT = SCRIPT_DIR.parent
 VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
 
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -69,15 +94,53 @@ sys.path.insert(0, str(VEX_METRIC_DIR))
 import vex_config as cfg
 
 
+def resolve_project_path(path_like: str | Path) -> Path:
+    """
+    Resolve a path robustly when the script is run from VEX/results/.
+
+    Search order:
+        1) absolute path as-is
+        2) PROJECT_ROOT / relative path
+        3) VEX_METRIC_DIR / relative path
+        4) SCRIPT_DIR / relative path
+        5) fallback PROJECT_ROOT / relative path
+    """
+    path_obj = Path(path_like)
+
+    if path_obj.is_absolute():
+        return path_obj
+
+    candidates = [
+        PROJECT_ROOT / path_obj,
+        VEX_METRIC_DIR / path_obj,
+        SCRIPT_DIR / path_obj,
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return PROJECT_ROOT / path_obj
+
+
 # =========================================================
 # CONFIG
 # =========================================================
 
-INPUT_PARQUET = Path(cfg.INPUT_PARQUET)
-OUTPUT_DIR = SCRIPT_PATH.parent / "figures_plot_2"
+INPUT_PARQUET = resolve_project_path(cfg.INPUT_PARQUET)
+
+EXAM_METRICS_PARQUET = resolve_project_path(
+    Path(cfg.TEST_ENV_FOLDER)
+    / cfg.TEST_ENV_METRICS_FOLDER
+    / "exam_level_precomputed_metrics.parquet"
+)
+
+OUTPUT_DIR = SCRIPT_DIR / "figures_plot_2"
 
 MODEL_COLUMNS = list(cfg.MODEL_COLUMNS)
 
+MODEL_COL = "model_col"
+TEST_SIZE_COL = "test_size"
 QUESTION_ID_COL = "question_id"
 STUDENT_ID_COL = "member_id"
 ANSWER_ID_COL = "answer_id"
@@ -86,16 +149,38 @@ HUMAN_GRADE_COL = "human_grade"
 LABEL_TYPE_COL = "label_type"
 GOLD_LABEL_VALUE = "gold"
 
-DATA_CSV = OUTPUT_DIR / "figure_2_qwk_vs_tau_data.csv"
+LINEAR_EL_QWK_COL = "el_qwk_linear_abs"
+BOLOGNA_EL_QWK_COL = "el_qwk_bologna"
+LINEAR_EL_ACC_COL = "el_acc_linear_abs"
+BOLOGNA_EL_ACC_COL = "el_acc_bologna"
+
+DATA_CSV = OUTPUT_DIR / "figure_2_item_vs_exam_data.csv"
 SANITY_CHECK_TXT = OUTPUT_DIR / "figure_2_sanity_check.txt"
-COMBINED_PDF = OUTPUT_DIR / "figure_2_qwk_vs_tau.pdf"
-COMBINED_PNG = OUTPUT_DIR / "figure_2_qwk_vs_tau.png"
-SCATTER_PDF = OUTPUT_DIR / "figure_2_scatter_item_qwk_vs_item_tau.pdf"
-SCATTER_PNG = OUTPUT_DIR / "figure_2_scatter_item_qwk_vs_item_tau.png"
-RANK_SHIFT_PDF = OUTPUT_DIR / "figure_2_rank_shift_item_qwk_vs_item_tau.pdf"
-RANK_SHIFT_PNG = OUTPUT_DIR / "figure_2_rank_shift_item_qwk_vs_item_tau.png"
+
+FIG_QWK_VS_ELQWK_PDF = OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.pdf"
+FIG_QWK_VS_ELQWK_PNG = OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.png"
+
+FIG_MSE_VS_ELQWK_PDF = OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.pdf"
+FIG_MSE_VS_ELQWK_PNG = OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.png"
+
+FIG_MSE_VS_ELACC_PDF = OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.pdf"
+FIG_MSE_VS_ELACC_PNG = OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.png"
 
 STALE_OUTPUTS = [
+    OUTPUT_DIR / "figure_2_qwk_vs_tau.pdf",
+    OUTPUT_DIR / "figure_2_qwk_vs_tau.png",
+    OUTPUT_DIR / "figure_2_scatter_item_qwk_vs_item_tau.pdf",
+    OUTPUT_DIR / "figure_2_scatter_item_qwk_vs_item_tau.png",
+    OUTPUT_DIR / "figure_2_rank_shift_item_qwk_vs_item_tau.pdf",
+    OUTPUT_DIR / "figure_2_rank_shift_item_qwk_vs_item_tau.png",
+    OUTPUT_DIR / "figure_2_qwk_vs_tau_data.csv",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk.pdf",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk.png",
+    OUTPUT_DIR / "figure_2_scatter_item_qwk_vs_el_qwk.pdf",
+    OUTPUT_DIR / "figure_2_scatter_item_qwk_vs_el_qwk.png",
+    OUTPUT_DIR / "figure_2_rank_shift_item_qwk_vs_el_qwk.pdf",
+    OUTPUT_DIR / "figure_2_rank_shift_item_qwk_vs_el_qwk.png",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_data.csv",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_q10.pdf",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_q10.png",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_q15.pdf",
@@ -131,20 +216,20 @@ DISPLAY_NAMES = {
     "pred_tfidf_v4_question_and_answer_separate": "TF-IDF QA",
 }
 
-
 FAMILY_COLORS = {
     "LLM": "#1f77b4",
     "Transformer": "#2ca02c",
     "Prior": "#9467bd",
     "TF-IDF": "#ff7f0e",
+    "Other": "#666666",
 }
-
 
 FAMILY_MARKERS = {
     "LLM": "o",
     "Transformer": "s",
     "Prior": "D",
     "TF-IDF": "^",
+    "Other": "o",
 }
 
 
@@ -442,38 +527,168 @@ def compute_item_metrics(item_df: pd.DataFrame) -> pd.DataFrame:
     rows = [item_metrics_for_model(item_df, model_col) for model_col in MODEL_COLUMNS]
     metrics_df = pd.DataFrame(rows)
 
-    metrics_df["qwk_rank"] = metrics_df["item_qwk"].rank(
+    metrics_df["item_qwk_rank"] = metrics_df["item_qwk"].rank(
         ascending=False,
         method="min",
         na_option="bottom",
     )
-    metrics_df["tau_rank"] = metrics_df["item_tau_b"].rank(
+    metrics_df["item_tau_b_rank"] = metrics_df["item_tau_b"].rank(
         ascending=False,
         method="min",
         na_option="bottom",
     )
-    metrics_df["mse_rank"] = metrics_df["item_mse"].rank(
+    metrics_df["item_mse_rank"] = metrics_df["item_mse"].rank(
         ascending=True,
         method="min",
         na_option="bottom",
     )
 
     return metrics_df.sort_values(
-        ["family", "qwk_rank", "tau_rank", "model"],
+        ["family", "item_qwk_rank", "item_tau_b_rank", "model"],
         ascending=[True, True, True, True],
     ).reset_index(drop=True)
 
 
+# =========================================================
+# EXAM-LEVEL METRICS
+# =========================================================
+
+def validate_exam_metrics_df(df: pd.DataFrame) -> None:
+    required = [
+        MODEL_COL,
+        TEST_SIZE_COL,
+        LINEAR_EL_QWK_COL,
+        BOLOGNA_EL_QWK_COL,
+        LINEAR_EL_ACC_COL,
+        BOLOGNA_EL_ACC_COL,
+    ]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns in exam metrics parquet: {missing}")
+
+
+def compute_exam_summary(
+    exam_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    validate_exam_metrics_df(exam_df)
+
+    subset = exam_df[
+        [
+            MODEL_COL,
+            TEST_SIZE_COL,
+            LINEAR_EL_QWK_COL,
+            BOLOGNA_EL_QWK_COL,
+            LINEAR_EL_ACC_COL,
+            BOLOGNA_EL_ACC_COL,
+        ]
+    ].copy()
+
+    subset[MODEL_COL] = normalize_string_series(subset[MODEL_COL])
+    subset[TEST_SIZE_COL] = pd.to_numeric(subset[TEST_SIZE_COL], errors="coerce")
+    subset[LINEAR_EL_QWK_COL] = pd.to_numeric(subset[LINEAR_EL_QWK_COL], errors="coerce")
+    subset[BOLOGNA_EL_QWK_COL] = pd.to_numeric(subset[BOLOGNA_EL_QWK_COL], errors="coerce")
+    subset[LINEAR_EL_ACC_COL] = pd.to_numeric(subset[LINEAR_EL_ACC_COL], errors="coerce")
+    subset[BOLOGNA_EL_ACC_COL] = pd.to_numeric(subset[BOLOGNA_EL_ACC_COL], errors="coerce")
+
+    subset = subset[subset[MODEL_COL].isin(MODEL_COLUMNS)].copy()
+
+    stats: dict[str, Any] = {
+        "exam_metric_rows_raw": int(len(exam_df)),
+        "exam_metric_rows_for_configured_models": int(len(subset)),
+        "exam_metric_models": int(subset[MODEL_COL].nunique()),
+        "exam_metric_test_sizes": sorted(
+            int(value)
+            for value in subset[TEST_SIZE_COL].dropna().unique().tolist()
+        ),
+        "exam_metric_linear_qwk_source_column": LINEAR_EL_QWK_COL,
+        "exam_metric_bologna_qwk_source_column": BOLOGNA_EL_QWK_COL,
+        "exam_metric_linear_acc_source_column": LINEAR_EL_ACC_COL,
+        "exam_metric_bologna_acc_source_column": BOLOGNA_EL_ACC_COL,
+    }
+
+    summary = (
+        subset.groupby(MODEL_COL, dropna=False)
+        .agg(
+            el_qwk_linear=("el_qwk_linear_abs", "mean"),
+            el_qwk_linear_std=("el_qwk_linear_abs", "std"),
+            el_qwk_linear_n=("el_qwk_linear_abs", "count"),
+            el_qwk_linear_missing=("el_qwk_linear_abs", lambda s: int(s.isna().sum())),
+
+            el_qwk_bologna=("el_qwk_bologna", "mean"),
+            el_qwk_bologna_std=("el_qwk_bologna", "std"),
+            el_qwk_bologna_n=("el_qwk_bologna", "count"),
+            el_qwk_bologna_missing=("el_qwk_bologna", lambda s: int(s.isna().sum())),
+
+            el_acc_linear=("el_acc_linear_abs", "mean"),
+            el_acc_linear_std=("el_acc_linear_abs", "std"),
+            el_acc_linear_n=("el_acc_linear_abs", "count"),
+            el_acc_linear_missing=("el_acc_linear_abs", lambda s: int(s.isna().sum())),
+
+            el_acc_bologna=("el_acc_bologna", "mean"),
+            el_acc_bologna_std=("el_acc_bologna", "std"),
+            el_acc_bologna_n=("el_acc_bologna", "count"),
+            el_acc_bologna_missing=("el_acc_bologna", lambda s: int(s.isna().sum())),
+        )
+        .reset_index()
+    )
+
+    return summary, stats
+
+
+def merge_item_and_exam_metrics(
+    item_metrics_df: pd.DataFrame,
+    exam_summary_df: pd.DataFrame,
+) -> pd.DataFrame:
+    plot_df = item_metrics_df.merge(
+        exam_summary_df,
+        on=MODEL_COL,
+        how="left",
+        validate="one_to_one",
+    )
+
+    plot_df["el_qwk_linear_rank"] = plot_df["el_qwk_linear"].rank(
+        ascending=False,
+        method="min",
+        na_option="bottom",
+    )
+    plot_df["el_qwk_bologna_rank"] = plot_df["el_qwk_bologna"].rank(
+        ascending=False,
+        method="min",
+        na_option="bottom",
+    )
+    plot_df["el_acc_linear_rank"] = plot_df["el_acc_linear"].rank(
+        ascending=False,
+        method="min",
+        na_option="bottom",
+    )
+    plot_df["el_acc_bologna_rank"] = plot_df["el_acc_bologna"].rank(
+        ascending=False,
+        method="min",
+        na_option="bottom",
+    )
+
+    return plot_df.sort_values(
+        ["family", "item_qwk_rank", "el_qwk_linear_rank", "model"],
+        ascending=[True, True, True, True],
+    ).reset_index(drop=True)
+
+
+# =========================================================
+# SANITY CHECK
+# =========================================================
+
 def write_sanity_check(
     plot_df: pd.DataFrame,
     item_stats: dict[str, Any],
+    exam_stats: dict[str, Any],
 ) -> None:
     lines: list[str] = []
 
     lines.append("=" * 100)
     lines.append("FIGURE 2 SANITY CHECK")
     lines.append("=" * 100)
-    lines.append(f"Input parquet: {INPUT_PARQUET.resolve()}")
+    lines.append(f"Item input parquet: {INPUT_PARQUET.resolve()}")
+    lines.append(f"Exam metrics parquet: {EXAM_METRICS_PARQUET.resolve()}")
     lines.append(
         "Item dataframe logic: evaluate_dataframe.py::_build_item_df_from_original_input, "
         "plus label_type == 'gold' filter when available."
@@ -483,12 +698,19 @@ def write_sanity_check(
     for key, value in item_stats.items():
         lines.append(f"  {key}: {value}")
     lines.append("")
-    lines.append("Metrics:")
-    lines.append("  item_mse  = mean((human_grade - model_prediction)^2) over gold items")
-    lines.append("  item_qwk  = quadratic weighted kappa over gold items")
-    lines.append("  item_tau_b = Kendall's tau-b over gold items")
+    lines.append("Exam-level metric counts:")
+    for key, value in exam_stats.items():
+        lines.append(f"  {key}: {value}")
     lines.append("")
-    lines.append("Per-model values used in the plot:")
+    lines.append("Metrics:")
+    lines.append("  item_mse       = mean((human_grade - model_prediction)^2) over gold items")
+    lines.append("  item_qwk       = quadratic weighted kappa over gold items")
+    lines.append("  el_qwk_linear  = mean el_qwk_linear_abs over virtual exams")
+    lines.append("  el_qwk_bologna = mean el_qwk_bologna over virtual exams")
+    lines.append("  el_acc_linear  = mean el_acc_linear_abs over virtual exams")
+    lines.append("  el_acc_bologna = mean el_acc_bologna over virtual exams")
+    lines.append("  item_tau_b     = Kendall's tau-b over gold items, sanity reference only")
+    lines.append("")
 
     table_cols = [
         "model_col",
@@ -500,24 +722,70 @@ def write_sanity_check(
         "item_mse",
         "item_qwk",
         "item_tau_b",
-        "mse_rank",
-        "qwk_rank",
-        "tau_rank",
+        "el_qwk_linear",
+        "el_qwk_linear_std",
+        "el_qwk_linear_n",
+        "el_qwk_linear_missing",
+        "el_qwk_bologna",
+        "el_qwk_bologna_std",
+        "el_qwk_bologna_n",
+        "el_qwk_bologna_missing",
+        "el_acc_linear",
+        "el_acc_linear_std",
+        "el_acc_linear_n",
+        "el_acc_linear_missing",
+        "el_acc_bologna",
+        "el_acc_bologna_std",
+        "el_acc_bologna_n",
+        "el_acc_bologna_missing",
+        "item_mse_rank",
+        "item_qwk_rank",
+        "item_tau_b_rank",
+        "el_qwk_linear_rank",
+        "el_qwk_bologna_rank",
+        "el_acc_linear_rank",
+        "el_acc_bologna_rank",
     ]
 
     table = plot_df[table_cols].copy()
-    for col in ["item_mse", "item_qwk", "item_tau_b"]:
+
+    for col in [
+        "item_mse",
+        "item_qwk",
+        "item_tau_b",
+        "el_qwk_linear",
+        "el_qwk_linear_std",
+        "el_qwk_bologna",
+        "el_qwk_bologna_std",
+        "el_acc_linear",
+        "el_acc_linear_std",
+        "el_acc_bologna",
+        "el_acc_bologna_std",
+    ]:
         table[col] = pd.to_numeric(table[col], errors="coerce").round(6)
 
+    lines.append("Per-model values used in the plots:")
     lines.append(table.to_string(index=False))
     lines.append("")
     lines.append("Sorted by item_qwk descending:")
-    by_qwk = table.sort_values(["qwk_rank", "tau_rank", "model"])
-    lines.append(by_qwk.to_string(index=False))
+    lines.append(
+        table.sort_values(["item_qwk_rank", "el_qwk_linear_rank", "model"]).to_string(index=False)
+    )
     lines.append("")
-    lines.append("Sorted by item_tau_b descending:")
-    by_tau = table.sort_values(["tau_rank", "qwk_rank", "model"])
-    lines.append(by_tau.to_string(index=False))
+    lines.append("Sorted by item_mse ascending:")
+    lines.append(
+        table.sort_values(["item_mse_rank", "el_qwk_linear_rank", "model"]).to_string(index=False)
+    )
+    lines.append("")
+    lines.append("Sorted by el_qwk_linear descending:")
+    lines.append(
+        table.sort_values(["el_qwk_linear_rank", "item_qwk_rank", "model"]).to_string(index=False)
+    )
+    lines.append("")
+    lines.append("Sorted by el_acc_linear descending:")
+    lines.append(
+        table.sort_values(["el_acc_linear_rank", "item_mse_rank", "model"]).to_string(index=False)
+    )
 
     SANITY_CHECK_TXT.write_text("\n".join(lines), encoding="utf-8")
 
@@ -540,6 +808,7 @@ def finite_limits(values: pd.Series, pad: float = 0.04) -> tuple[float, float]:
 
     lower = float(finite.min())
     upper = float(finite.max())
+
     if lower == upper:
         lower -= pad
         upper += pad
@@ -551,13 +820,21 @@ def finite_limits(values: pd.Series, pad: float = 0.04) -> tuple[float, float]:
     return lower, upper
 
 
-def plot_scatter(plot_df: pd.DataFrame, ax: plt.Axes) -> None:
-    scatter_df = plot_df.dropna(subset=["item_qwk", "item_tau_b"]).copy()
+def plot_scatter_generic(
+    plot_df: pd.DataFrame,
+    ax: plt.Axes,
+    x_col: str,
+    y_col: str,
+    x_label: str,
+    y_label: str,
+    panel_label: str,
+) -> None:
+    scatter_df = plot_df.dropna(subset=[x_col, y_col]).copy()
 
     for family, family_df in scatter_df.groupby("family", sort=False):
         ax.scatter(
-            family_df["item_qwk"],
-            family_df["item_tau_b"],
+            family_df[x_col],
+            family_df[y_col],
             s=70,
             marker=FAMILY_MARKERS.get(family, "o"),
             color=FAMILY_COLORS.get(family, "#666666"),
@@ -585,82 +862,98 @@ def plot_scatter(plot_df: pd.DataFrame, ax: plt.Axes) -> None:
         xytext = label_offsets.get(str(row["model"]), (5, 4))
         ax.annotate(
             str(row["model"]),
-            xy=(row["item_qwk"], row["item_tau_b"]),
+            xy=(row[x_col], row[y_col]),
             xytext=xytext,
             textcoords="offset points",
             fontsize=7,
         )
 
-    x_min, x_max = finite_limits(scatter_df["item_qwk"])
-    y_min, y_max = finite_limits(scatter_df["item_tau_b"])
+    x_min, x_max = finite_limits(scatter_df[x_col])
+    y_min, y_max = finite_limits(scatter_df[y_col])
+
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
 
-    ax.set_xlabel("Item-level QWK")
-    ax.set_ylabel("Item-level Kendall's tau-b")
-    ax.set_title("(a) Item-Level QWK vs. Item-Level Tau")
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(f"{panel_label} {x_label} vs. {y_label}")
+
     style_axes(ax)
     ax.legend(frameon=False, fontsize=8, loc="lower right")
 
 
-def plot_slope_chart(plot_df: pd.DataFrame, ax: plt.Axes) -> None:
-    ranked = plot_df.sort_values("qwk_rank", ascending=True).copy()
+def plot_slope_chart_generic(
+    plot_df: pd.DataFrame,
+    ax: plt.Axes,
+    x_col: str,
+    y_col: str,
+    x_label_short: str,
+    y_label_short: str,
+    panel_label: str,
+    x_ascending: bool,
+    y_ascending: bool,
+) -> None:
+    ranked = plot_df.dropna(subset=[x_col, y_col]).copy()
 
-    qwk_order = plot_df.sort_values(
-        ["item_qwk", "model"],
-        ascending=[False, True],
+    x_order = ranked.sort_values(
+        [x_col, "model"],
+        ascending=[x_ascending, True],
         na_position="last",
     )
-    tau_order = plot_df.sort_values(
-        ["item_tau_b", "model"],
-        ascending=[False, True],
+    y_order = ranked.sort_values(
+        [y_col, "model"],
+        ascending=[y_ascending, True],
         na_position="last",
     )
-    qwk_plot_rank = {
+
+    x_plot_rank = {
         model_col: rank
-        for rank, model_col in enumerate(qwk_order["model_col"], start=1)
+        for rank, model_col in enumerate(x_order["model_col"], start=1)
     }
-    tau_plot_rank = {
+    y_plot_rank = {
         model_col: rank
-        for rank, model_col in enumerate(tau_order["model_col"], start=1)
+        for rank, model_col in enumerate(y_order["model_col"], start=1)
     }
-    ranked["qwk_plot_rank"] = ranked["model_col"].map(qwk_plot_rank)
-    ranked["tau_plot_rank"] = ranked["model_col"].map(tau_plot_rank)
+
+    ranked["x_plot_rank"] = ranked["model_col"].map(x_plot_rank)
+    ranked["y_plot_rank"] = ranked["model_col"].map(y_plot_rank)
 
     max_rank = len(ranked)
 
     left_x = 0.25
-    right_x = 0.4
+    right_x = 0.40
 
     ax.set_xlim(0.05, 0.62)
     ax.set_ylim(max_rank + 0.75, 0.25)
     ax.set_xticks([left_x, right_x])
-    ax.set_xticklabels(["Item-QWK", "Item-tau-b"])
+    ax.set_xticklabels([x_label_short, y_label_short])
     ax.set_yticks(np.arange(1, max_rank + 1, 2))
     ax.set_ylabel("Model rank (1 = best)")
-    ax.set_title("(b) Rank Shift Between Item Metrics")
+    ax.set_title(f"{panel_label} Rank Shift: {x_label_short} vs. {y_label_short}")
 
     for _, row in ranked.iterrows():
         color = FAMILY_COLORS.get(row["family"], "#666666")
+
         ax.plot(
             [left_x, right_x],
-            [row["qwk_plot_rank"], row["tau_plot_rank"]],
+            [row["x_plot_rank"], row["y_plot_rank"]],
             color=color,
             linewidth=1.3,
             alpha=0.8,
         )
         ax.scatter(
             [left_x, right_x],
-            [row["qwk_plot_rank"], row["tau_plot_rank"]],
+            [row["x_plot_rank"], row["y_plot_rank"]],
             color=color,
             edgecolor="black",
             linewidth=0.4,
             s=35,
             zorder=3,
         )
+
         ax.text(
             left_x - 0.03,
-            row["qwk_plot_rank"],
+            row["x_plot_rank"],
             str(row["model"]),
             ha="right",
             va="center",
@@ -668,7 +961,7 @@ def plot_slope_chart(plot_df: pd.DataFrame, ax: plt.Axes) -> None:
         )
         ax.text(
             right_x + 0.03,
-            row["tau_plot_rank"],
+            row["y_plot_rank"],
             str(row["model"]),
             ha="left",
             va="center",
@@ -681,38 +974,148 @@ def plot_slope_chart(plot_df: pd.DataFrame, ax: plt.Axes) -> None:
     ax.spines["bottom"].set_visible(False)
 
 
+def save_comparison_figure(
+    plot_df: pd.DataFrame,
+    *,
+    x_col: str,
+    x_label: str,
+    x_label_short: str,
+    x_ascending: bool,
+    linear_metric_col: str,
+    linear_metric_label: str,
+    linear_metric_short: str,
+    linear_ascending: bool,
+    bologna_metric_col: str,
+    bologna_metric_label: str,
+    bologna_metric_short: str,
+    bologna_ascending: bool,
+    output_pdf: Path,
+    output_png: Path,
+) -> list[Path]:
+    fig, axes = plt.subplots(
+        nrows=2,
+        ncols=2,
+        figsize=(10.8, 9.8),
+        gridspec_kw={"width_ratios": [1.05, 0.95]},
+    )
+
+    # Top row: linear
+    plot_scatter_generic(
+        plot_df=plot_df,
+        ax=axes[0, 0],
+        x_col=x_col,
+        y_col=linear_metric_col,
+        x_label=x_label,
+        y_label=linear_metric_label,
+        panel_label="(a)",
+    )
+    plot_slope_chart_generic(
+        plot_df=plot_df,
+        ax=axes[0, 1],
+        x_col=x_col,
+        y_col=linear_metric_col,
+        x_label_short=x_label_short,
+        y_label_short=linear_metric_short,
+        panel_label="(b)",
+        x_ascending=x_ascending,
+        y_ascending=linear_ascending,
+    )
+
+    # Bottom row: bologna
+    plot_scatter_generic(
+        plot_df=plot_df,
+        ax=axes[1, 0],
+        x_col=x_col,
+        y_col=bologna_metric_col,
+        x_label=x_label,
+        y_label=bologna_metric_label,
+        panel_label="(c)",
+    )
+    plot_slope_chart_generic(
+        plot_df=plot_df,
+        ax=axes[1, 1],
+        x_col=x_col,
+        y_col=bologna_metric_col,
+        x_label_short=x_label_short,
+        y_label_short=bologna_metric_short,
+        panel_label="(d)",
+        x_ascending=x_ascending,
+        y_ascending=bologna_ascending,
+    )
+
+    fig.tight_layout(w_pad=2.0, h_pad=2.2)
+    fig.savefig(output_pdf, bbox_inches="tight")
+    fig.savefig(output_png, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    return [output_pdf, output_png]
+
+
 def save_plots(plot_df: pd.DataFrame) -> list[Path]:
     written: list[Path] = []
 
-    fig, axes = plt.subplots(
-        nrows=1,
-        ncols=2,
-        figsize=(10.4, 5.6),
-        gridspec_kw={"width_ratios": [1.05, 0.95]},
+    # 1) Item-QWK vs EL-QWK
+    written.extend(
+        save_comparison_figure(
+            plot_df=plot_df,
+            x_col="item_qwk",
+            x_label="Item-level QWK",
+            x_label_short="Item-QWK",
+            x_ascending=False,
+            linear_metric_col="el_qwk_linear",
+            linear_metric_label="EL-QWK Linear Abs",
+            linear_metric_short="EL-QWK",
+            linear_ascending=False,
+            bologna_metric_col="el_qwk_bologna",
+            bologna_metric_label="EL-QWK Bologna",
+            bologna_metric_short="EL-QWK",
+            bologna_ascending=False,
+            output_pdf=FIG_QWK_VS_ELQWK_PDF,
+            output_png=FIG_QWK_VS_ELQWK_PNG,
+        )
     )
-    plot_scatter(plot_df, axes[0])
-    plot_slope_chart(plot_df, axes[1])
-    fig.tight_layout(w_pad=2.0)
-    fig.savefig(COMBINED_PDF, bbox_inches="tight")
-    fig.savefig(COMBINED_PNG, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    written.extend([COMBINED_PDF, COMBINED_PNG])
 
-    fig, ax = plt.subplots(figsize=(6.2, 5.8))
-    plot_scatter(plot_df, ax)
-    fig.tight_layout()
-    fig.savefig(SCATTER_PDF, bbox_inches="tight")
-    fig.savefig(SCATTER_PNG, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    written.extend([SCATTER_PDF, SCATTER_PNG])
+    # 2) Item-MSE vs EL-QWK
+    written.extend(
+        save_comparison_figure(
+            plot_df=plot_df,
+            x_col="item_mse",
+            x_label="Item-level MSE",
+            x_label_short="Item-MSE",
+            x_ascending=True,
+            linear_metric_col="el_qwk_linear",
+            linear_metric_label="EL-QWK Linear Abs",
+            linear_metric_short="EL-QWK",
+            linear_ascending=False,
+            bologna_metric_col="el_qwk_bologna",
+            bologna_metric_label="EL-QWK Bologna",
+            bologna_metric_short="EL-QWK",
+            bologna_ascending=False,
+            output_pdf=FIG_MSE_VS_ELQWK_PDF,
+            output_png=FIG_MSE_VS_ELQWK_PNG,
+        )
+    )
 
-    fig, ax = plt.subplots(figsize=(4.9, 5.6))
-    plot_slope_chart(plot_df, ax)
-    fig.tight_layout()
-    fig.savefig(RANK_SHIFT_PDF, bbox_inches="tight")
-    fig.savefig(RANK_SHIFT_PNG, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    written.extend([RANK_SHIFT_PDF, RANK_SHIFT_PNG])
+    # 3) Item-MSE vs EL-Acc
+    written.extend(
+        save_comparison_figure(
+            plot_df=plot_df,
+            x_col="item_mse",
+            x_label="Item-level MSE",
+            x_label_short="Item-MSE",
+            x_ascending=True,
+            linear_metric_col="el_acc_linear",
+            linear_metric_label="EL-Acc Linear Abs",
+            linear_metric_short="EL-Acc",
+            linear_ascending=False,
+            bologna_metric_col="el_acc_bologna",
+            bologna_metric_label="EL-Acc Bologna",
+            bologna_metric_short="EL-Acc",
+            bologna_ascending=False,
+            output_pdf=FIG_MSE_VS_ELACC_PDF,
+            output_png=FIG_MSE_VS_ELACC_PNG,
+        )
+    )
 
     return written
 
@@ -727,27 +1130,50 @@ def main() -> None:
             f"Input parquet not found: {INPUT_PARQUET.resolve()}"
         )
 
+    if not EXAM_METRICS_PARQUET.exists():
+        raise FileNotFoundError(
+            f"Exam metrics parquet not found: {EXAM_METRICS_PARQUET.resolve()}"
+        )
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     for stale_output in STALE_OUTPUTS:
         if stale_output.exists():
-            stale_output.unlink()
+            try:
+                stale_output.unlink()
+            except PermissionError:
+                print(
+                    f"Warning: could not remove locked stale output: {stale_output.resolve()}"
+                )
 
     print("=" * 100)
-    print("CREATE FIGURE 2: ITEM-QWK VS ITEM-LEVEL TAU")
+    print("CREATE FIGURE 2: ITEM-LEVEL VS EXAM-LEVEL METRICS")
     print("=" * 100)
-    print(f"Input parquet: {INPUT_PARQUET.resolve()}")
-    print(f"Output folder: {OUTPUT_DIR.resolve()}")
+    print(f"Item input parquet:  {INPUT_PARQUET.resolve()}")
+    print(f"Exam metrics parquet:{EXAM_METRICS_PARQUET.resolve()}")
+    print(f"Output folder:       {OUTPUT_DIR.resolve()}")
     print("")
 
     df = read_parquet(INPUT_PARQUET)
     item_df, item_stats = build_gold_item_df_from_original_input(df)
-    plot_df = compute_item_metrics(item_df)
+    item_metrics_df = compute_item_metrics(item_df)
+
+    exam_df = read_parquet(EXAM_METRICS_PARQUET)
+    exam_summary_df, exam_stats = compute_exam_summary(exam_df)
+
+    plot_df = merge_item_and_exam_metrics(item_metrics_df, exam_summary_df)
 
     if plot_df.empty:
         raise ValueError("No model metrics available for plotting.")
 
     plot_df.to_csv(DATA_CSV, index=False, encoding="utf-8")
-    write_sanity_check(plot_df=plot_df, item_stats=item_stats)
+
+    write_sanity_check(
+        plot_df=plot_df,
+        item_stats=item_stats,
+        exam_stats=exam_stats,
+    )
+
     written_plot_paths = save_plots(plot_df)
 
     print("Saved:")

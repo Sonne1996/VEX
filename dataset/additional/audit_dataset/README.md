@@ -55,6 +55,8 @@ Use this dataset when the goal is to study how gold labels were produced or corr
 
 - Column names follow an earlier dataset stage and still use fields such as `name`, `bloom`, and `topic`.
 - This dataset is not the main VEX metric input. For benchmark evaluation, use [../vex_metric_dataset/README.md](../vex_metric_dataset/README.md#L1).
+- Croissant metadata is provided in `croissant_metadata.json`.
+- Licensing is covered by [../../vex/metadata/DATA_LICENSE.md](../../vex/metadata/DATA_LICENSE.md#L1), which also applies to the additional derived datasets.
 
 ## Provenance Note
 

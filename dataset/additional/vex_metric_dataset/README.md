@@ -78,10 +78,17 @@ dataset/additional/vex_metric_dataset/merged_model_predictions.parquet
 
 in the benchmark-oriented pipeline layout documented in [../../../vex_metric/README.md](../../../vex_metric/README.md#L1).
 
+The current `vex_metric/vex_config.py` consumes a configured subset of the
+available prediction columns. In particular, it uses the fine-tuned encoder
+columns `grade_bert_ft` and `grade_mdeberta_ft`, plus selected TF-IDF columns,
+prior/template baselines, and joint LLM prediction columns.
+
 ## Notes
 
 - This dataset uses the later stable naming convention such as `student_name`, `bloom_level`, and `question_topic`.
 - Unlike the audit and teacher-selection datasets, it is intentionally trimmed to the fields most relevant for evaluation rather than annotation tracing.
+- Croissant metadata is provided in `croissant_metadata.json`.
+- Licensing is covered by [../../vex/metadata/DATA_LICENSE.md](../../vex/metadata/DATA_LICENSE.md#L1), which also applies to the additional derived datasets.
 
 ## Provenance Note
 

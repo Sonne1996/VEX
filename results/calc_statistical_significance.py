@@ -35,7 +35,7 @@ import vex_config as cfg
 # CONFIG
 # =========================================================
 
-TEST_SIZE = 10
+TEST_SIZE = 20
 
 # For debugging: 100 or 1_000
 # For final reporting: 5_000 or 10_000
@@ -92,12 +92,6 @@ QUESTION_ID_COL = "question_id"
 ANSWER_ID_COL = "answer_id"
 HUMAN_GRADE_COL = "human_grade"
 
-EXCLUDED_MODEL_PREFIXES = (
-    "grade_prior_",
-    "grade_bert_",
-    "grade_mdeberta_",
-)
-
 EXCLUDE_TFIDF = False
 
 ScaleName = Literal["linear_abs", "bologna"]
@@ -110,8 +104,6 @@ ScaleName = Literal["linear_abs", "bologna"]
 # Collects all model prediction columns that should be evaluated.
 #
 # The function starts from cfg.MODEL_COLUMNS and removes:
-#   - prior/template baselines
-#   - BERT/MDeBERTa baselines
 #   - optionally TF-IDF baselines if EXCLUDE_TFIDF=True
 #
 # The returned list defines exactly which model columns enter the ranking,
@@ -120,8 +112,6 @@ def get_eval_model_columns() -> list[str]:
     model_cols: list[str] = []
 
     for col in cfg.MODEL_COLUMNS:
-        if col.startswith(EXCLUDED_MODEL_PREFIXES):
-            continue
 
         if EXCLUDE_TFIDF and col.startswith("pred_tfidf_"):
             continue

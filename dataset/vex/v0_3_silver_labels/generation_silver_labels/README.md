@@ -4,6 +4,9 @@ This folder documents how the silver labels for **VEX v0.3** were generated.
 
 The silver-label workflow was used to scale beyond the manually annotated gold subset. In short, we first selected a teacher model on gold data, then used that teacher to grade the large training split, and finally merged those grades back into the main dataset lineage.
 
+The train/test split used here was already introduced after the `v0_1` export
+stage and is carried through the later dataset versions.
+
 ## Overview
 
 The silver labels in `v0.3` were produced in three stages:
@@ -154,6 +157,10 @@ Finally, the stable naming convention is applied:
 - `topic` -> `question_topic`
 
 The result is the released `v0.3_stable.parquet`, the first stable dataset version aligned with the downstream modeling pipeline.
+
+After this stable version is available, the repository derives the four
+task-specific datasets under `dataset/additional/`: audit analysis, feedback
+analysis, teacher selection, and VEX metric evaluation.
 
 ## Workflow Summary
 

@@ -6,6 +6,10 @@ The goal of this workflow is to turn independently annotated human labels from G
 
 This README only describes the gold-label and audit workflow. The creation of the initial 10% gold subset is documented separately.
 
+The resulting gold labels feed into the later dataset split, teacher-selection,
+silver-label generation, and VEX metric evaluation workflows documented under
+`dataset/`.
+
 ---
 
 ## Overview

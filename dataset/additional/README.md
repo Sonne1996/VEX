@@ -1,19 +1,16 @@
 # Additional Datasets
 
-This folder contains derived VEX datasets prepared for specific downstream analyses beyond the main benchmark release. Each subfolder corresponds to a different paper-facing use case or metric layer.
+This folder contains derived VEX datasets prepared after `v0.3_stable` for
+specific downstream analyses beyond the main benchmark release.
 
-The datasets here are not redundant copies of the main release. Instead, they preserve task-specific structure that is useful for:
-
-- human audit analysis,
-- teacher-model selection,
-- feedback quality studies,
-- VEX exam-level evaluation.
+The datasets here are not redundant copies of the main release. Each one keeps a
+task-specific view of the same underlying VEX data lineage.
 
 ## Subfolders
 
 ### `audit_dataset/`
 
-Audit-focused dataset with human annotation and audit metadata preserved. This version is useful for disagreement analysis, audit tracing, and studying how final gold labels were resolved.
+Audit-focused dataset with human annotation and audit metadata preserved.
 
 Main file:
 
@@ -21,9 +18,12 @@ Main file:
 audit_dataset.parquet
 ```
 
+Use this dataset for disagreement analysis, audit tracing, and studying how
+final gold labels were resolved.
+
 ### `feedback_dataset/`
 
-Long-format dataset for feedback-oriented experiments. Each row contains a student answer together with one model's grade and written feedback, making it suitable for feedback evaluation or comparison across feedback-generating models.
+Long-format dataset for feedback-oriented experiments.
 
 Main file:
 
@@ -31,9 +31,12 @@ Main file:
 merged_feedback_long.parquet
 ```
 
+Each row contains a student answer together with one model's grade and written
+feedback.
+
 ### `teacher_selection_dataset/`
 
-Gold-based dataset used for teacher-model selection workflows. It preserves gold annotation context together with teacher-candidate outputs and model-based evaluation columns used to compare or rank candidate teachers before silver-label generation.
+Gold-based dataset used for teacher-model selection workflows.
 
 Main file:
 
@@ -41,9 +44,12 @@ Main file:
 gold_with_all_models.parquet
 ```
 
+This dataset preserves gold annotation context together with teacher-candidate
+outputs and evaluator-model columns used before silver-label generation.
+
 ### `vex_metric_dataset/`
 
-The merged prediction dataset used by the VEX evaluation pipeline. This is the most benchmark-facing derived dataset in this folder and contains the human reference grade plus the prediction columns needed for item-level and exam-level evaluation.
+Merged prediction dataset used by the VEX metric pipeline.
 
 Main file:
 
@@ -51,13 +57,25 @@ Main file:
 merged_model_predictions.parquet
 ```
 
+This is the benchmark-facing dataset for item-level and virtual-exam-level
+evaluation.
+
 ## Relation to the Main Dataset
 
-These datasets are derived from the same underlying VEX data lineage, but they keep different subsets of metadata depending on the target use case:
+These datasets are created after the stable modeling schema is available. They
+share the same VEX lineage, but each keeps the columns needed for its own
+analysis:
 
 - the audit dataset keeps annotation and audit columns,
-- the feedback dataset reshapes outputs into feedback-centric long format,
+- the feedback dataset reshapes feedback-generating model outputs into long format,
 - the teacher-selection dataset keeps teacher-candidate and evaluator outputs,
-- the VEX metric dataset keeps final model prediction columns for benchmark evaluation.
+- the VEX metric dataset keeps final prediction columns for benchmark evaluation.
 
-For the benchmark-ready dataset lineage itself, see [../vex/metadata/CHANGE_LOG.md](../vex/metadata/CHANGE_LOG.md#L1).
+For the benchmark-ready dataset lineage itself, see
+[../vex/metadata/CHANGE_LOG.md](../vex/metadata/CHANGE_LOG.md).
+
+## Metadata and License
+
+Each subfolder includes Croissant metadata where available. The dataset license
+is documented in [../vex/metadata/DATA_LICENSE.md](../vex/metadata/DATA_LICENSE.md)
+and applies to these additional datasets as well.
