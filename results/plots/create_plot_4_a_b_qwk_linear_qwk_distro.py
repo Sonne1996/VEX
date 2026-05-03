@@ -30,7 +30,7 @@ Grade-scale construction:
             n_classes = 2 means binary fail/pass.
             n_classes = 10 means fail + 9 absolute passing categories.
 
-    bologna_distribution:
+    distrobution_distribution:
         class 0:
             fail, normalized score < PASS_THRESHOLD
 
@@ -38,14 +38,14 @@ Grade-scale construction:
             passing categories assigned by rank among passing students.
 
         The passing-class distribution is interpolated from the default
-        Bologna distribution:
+        Distrobution distribution:
 
             [0.10, 0.25, 0.30, 0.25, 0.10]
 
         Therefore:
             n_classes = 2 means binary fail/pass.
-            n_classes = 6 means F + A/B/C/D/E-style Bologna.
-            n_classes = 10 means fail + 9 finer Bologna-shaped passing categories.
+            n_classes = 6 means F + A/B/C/D/E-style Distrobution.
+            n_classes = 10 means fail + 9 finer Distrobution-shaped passing categories.
 
 Metrics:
     - EL-Acc
@@ -58,18 +58,20 @@ Outputs:
         figure_4_q10_absolute_el_acc_granularity.png/pdf
         figure_4_q10_absolute_el_qwk_granularity.png/pdf
         figure_4_q10_absolute_el_tau_granularity.png/pdf
-        figure_4_q10_bologna_el_acc_granularity.png/pdf
-        figure_4_q10_bologna_el_qwk_granularity.png/pdf
-        figure_4_q10_bologna_el_tau_granularity.png/pdf
+        figure_4_q10_distrobution_el_acc_granularity.png/pdf
+        figure_4_q10_distrobution_el_qwk_granularity.png/pdf
+        figure_4_q10_distrobution_el_tau_granularity.png/pdf
         figure_4_q10_granularity_data.csv
         figure_4_q10_granularity_per_exam.csv
         figure_4_q10_sanity_check.txt
         figure_4_q15_...png/pdf
         figure_4_q20_...png/pdf
+        figure_4_q21_...png/pdf
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -89,8 +91,8 @@ import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-VEX_METRIC_DIR = (SCRIPT_DIR / ".." / "vex_metric").resolve()
-PROJECT_ROOT = (SCRIPT_DIR / "..").resolve()
+PROJECT_ROOT = SCRIPT_DIR.parents[1]
+VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
 
 sys.path.insert(0, str(VEX_METRIC_DIR))
 
@@ -109,8 +111,7 @@ except ModuleNotFoundError as exc:
 
 
 INPUT_PARQUET = (
-    SCRIPT_DIR
-    / ".."
+    PROJECT_ROOT
     / "vex_metric"
     / "vex_test_env"
     / "4_dataframe"
@@ -140,20 +141,27 @@ MODEL_COLUMNS = list(cfg.MODEL_COLUMNS)
 # =========================================================
 
 # None means: use all test sizes available in dataframe_env.parquet.
-# Set to e.g. [10] for a q10-only run.
-TARGET_TEST_SIZES: list[int] | None = None
+# The paper figures currently use q5/q10/q15/q20/q21.
+TARGET_TEST_SIZES: list[int] | None = [5, 10, 15, 20, 21]
 
 MIN_CLASSES = 2
 MAX_CLASSES = 10
 CLASS_COUNTS = list(range(MIN_CLASSES, MAX_CLASSES + 1))
 
 PASS_THRESHOLD = float(cfg.LINEAR_PASS_THRESHOLD_NORM)
+DISTROBUTION_PASSING_DISTRIBUTION = list(
+    getattr(
+        cfg,
+        "DISTROBUTION_PASSING_DISTRIBUTION",
+        cfg.DISTRIBUTION_PASSING_DISTRIBUTION,
+    )
+)
 
 RECOMPUTE_PER_EXAM_METRICS = True
 
 SCALE_ABSOLUTE = "absolute_threshold"
-SCALE_BOLOGNA = "bologna_distribution"
-SCALE_TYPES = [SCALE_ABSOLUTE, SCALE_BOLOGNA]
+SCALE_DISTROBUTION = "distrobution_distribution"
+SCALE_TYPES = [SCALE_ABSOLUTE, SCALE_DISTROBUTION]
 
 
 COMBINED_SUMMARY_CSV = OUTPUT_DIR / "figure_4_granularity_data.csv"
@@ -170,12 +178,12 @@ def figure_4_paths(test_size: int) -> dict[str, Path]:
         "abs_qwk_png": OUTPUT_DIR / f"{prefix}_absolute_el_qwk_granularity.png",
         "abs_tau_pdf": OUTPUT_DIR / f"{prefix}_absolute_el_tau_granularity.pdf",
         "abs_tau_png": OUTPUT_DIR / f"{prefix}_absolute_el_tau_granularity.png",
-        "bol_acc_pdf": OUTPUT_DIR / f"{prefix}_bologna_el_acc_granularity.pdf",
-        "bol_acc_png": OUTPUT_DIR / f"{prefix}_bologna_el_acc_granularity.png",
-        "bol_qwk_pdf": OUTPUT_DIR / f"{prefix}_bologna_el_qwk_granularity.pdf",
-        "bol_qwk_png": OUTPUT_DIR / f"{prefix}_bologna_el_qwk_granularity.png",
-        "bol_tau_pdf": OUTPUT_DIR / f"{prefix}_bologna_el_tau_granularity.pdf",
-        "bol_tau_png": OUTPUT_DIR / f"{prefix}_bologna_el_tau_granularity.png",
+        "bol_acc_pdf": OUTPUT_DIR / f"{prefix}_distrobution_el_acc_granularity.pdf",
+        "bol_acc_png": OUTPUT_DIR / f"{prefix}_distrobution_el_acc_granularity.png",
+        "bol_qwk_pdf": OUTPUT_DIR / f"{prefix}_distrobution_el_qwk_granularity.pdf",
+        "bol_qwk_png": OUTPUT_DIR / f"{prefix}_distrobution_el_qwk_granularity.png",
+        "bol_tau_pdf": OUTPUT_DIR / f"{prefix}_distrobution_el_tau_granularity.pdf",
+        "bol_tau_png": OUTPUT_DIR / f"{prefix}_distrobution_el_tau_granularity.png",
         "summary_csv": OUTPUT_DIR / f"{prefix}_granularity_data.csv",
         "per_exam_csv": OUTPUT_DIR / f"{prefix}_granularity_per_exam.csv",
         "sanity_txt": OUTPUT_DIR / f"{prefix}_sanity_check.txt",
@@ -519,24 +527,24 @@ def labels_from_normalized_scores_absolute_threshold(
 
 
 # =========================================================
-# BOLOGNA DISTRIBUTION SCALE
+# DISTROBUTION DISTRIBUTION SCALE
 # =========================================================
 
-def interpolated_bologna_passing_distribution(
+def interpolated_distrobution_passing_distribution(
     n_passing_classes: int,
 ) -> list[float]:
     """
-    Builds a Bologna-shaped passing distribution for an arbitrary number
+    Builds a Distrobution-shaped passing distribution for an arbitrary number
     of passing classes.
 
     Anchor:
-        5 passing classes -> cfg.BOLOGNA_PASSING_DISTRIBUTION
+        5 passing classes -> DISTROBUTION_PASSING_DISTRIBUTION
         normally [0.10, 0.25, 0.30, 0.25, 0.10]
 
     Examples:
         n_passing_classes = 1 -> [1.0]
-        n_passing_classes = 5 -> default Bologna A/B/C/D/E
-        n_passing_classes = 9 -> finer Bologna-shaped distribution
+        n_passing_classes = 5 -> default Distrobution A/B/C/D/E
+        n_passing_classes = 9 -> finer Distrobution-shaped distribution
     """
     if n_passing_classes < 1:
         raise ValueError("n_passing_classes must be >= 1.")
@@ -545,12 +553,12 @@ def interpolated_bologna_passing_distribution(
         return [1.0]
 
     base_distribution = np.asarray(
-        cfg.BOLOGNA_PASSING_DISTRIBUTION,
+        DISTROBUTION_PASSING_DISTRIBUTION,
         dtype=float,
     )
 
     if base_distribution.ndim != 1 or len(base_distribution) == 0:
-        raise ValueError("cfg.BOLOGNA_PASSING_DISTRIBUTION must be a non-empty list.")
+        raise ValueError("DISTROBUTION_PASSING_DISTRIBUTION must be a non-empty list.")
 
     if not np.isclose(base_distribution.sum(), 1.0):
         base_distribution = base_distribution / base_distribution.sum()
@@ -572,19 +580,19 @@ def interpolated_bologna_passing_distribution(
     return distribution.tolist()
 
 
-def labels_from_normalized_scores_bologna_distribution(
+def labels_from_normalized_scores_distrobution_distribution(
     scores: pd.Series | np.ndarray,
     n_classes: int,
 ) -> np.ndarray:
     """
-    Converts normalized exam scores to distribution-based Bologna-style classes.
+    Converts normalized exam scores to distribution-based Distrobution-style classes.
 
     class 0:
         fail, score < PASS_THRESHOLD
 
     classes 1..n_classes-1:
         passing students are ranked by score and assigned to passing classes
-        according to an interpolated Bologna-shaped distribution.
+        according to an interpolated Distrobution-shaped distribution.
 
     Higher class value means better final grade.
 
@@ -620,7 +628,7 @@ def labels_from_normalized_scores_bologna_distribution(
     n_passed = len(passed_indices)
     n_passing_classes = n_classes - 1
 
-    passing_distribution = interpolated_bologna_passing_distribution(
+    passing_distribution = interpolated_distrobution_passing_distribution(
         n_passing_classes=n_passing_classes,
     )
 
@@ -673,8 +681,8 @@ def labels_from_normalized_scores(
             n_classes=n_classes,
         )
 
-    if scale_type == SCALE_BOLOGNA:
-        return labels_from_normalized_scores_bologna_distribution(
+    if scale_type == SCALE_DISTROBUTION:
+        return labels_from_normalized_scores_distrobution_distribution(
             scores=scores,
             n_classes=n_classes,
         )
@@ -809,10 +817,10 @@ def compute_granularity_metrics_for_model(
                 )
 
                 distribution = ""
-                if scale_type == SCALE_BOLOGNA:
+                if scale_type == SCALE_DISTROBUTION:
                     distribution = ",".join(
                         f"{x:.6f}"
-                        for x in interpolated_bologna_passing_distribution(
+                        for x in interpolated_distrobution_passing_distribution(
                             n_passing_classes=n_classes - 1
                         )
                     )
@@ -830,7 +838,7 @@ def compute_granularity_metrics_for_model(
                         "scale_label": str(n_classes),
                         "scale_name": f"{scale_type}_{n_classes}_classes",
                         "pass_threshold": PASS_THRESHOLD,
-                        "bologna_passing_distribution": distribution,
+                        "distrobution_passing_distribution": distribution,
                         "n_students": int(len(exam_df)),
                         "el_acc": accuracy_safe(gold_labels, pred_labels),
                         "el_qwk": qwk_safe(
@@ -902,7 +910,7 @@ def summarize_metrics(per_exam_df: pd.DataFrame) -> pd.DataFrame:
                 "scale_label",
                 "scale_name",
                 "pass_threshold",
-                "bologna_passing_distribution",
+                "distrobution_passing_distribution",
             ],
             sort=False,
         )
@@ -995,16 +1003,16 @@ def write_sanity_check(
     lines.append("  classes 1..n-1 = equal-width passing categories on [threshold, 1]")
     lines.append("  n=2 therefore corresponds to fail/pass.")
     lines.append("")
-    lines.append("Bologna distribution scale:")
+    lines.append("Distrobution distribution scale:")
     lines.append("  class 0 = fail, normalized score < pass threshold")
     lines.append("  classes 1..n-1 = ranked passing categories")
     lines.append("  passing-category distribution is interpolated from:")
-    lines.append(f"  {cfg.BOLOGNA_PASSING_DISTRIBUTION}")
-    lines.append("  n=6 therefore corresponds to F + A/B/C/D/E-style Bologna.")
+    lines.append(f"  {DISTROBUTION_PASSING_DISTRIBUTION}")
+    lines.append("  n=6 therefore corresponds to F + A/B/C/D/E-style Distrobution.")
     lines.append("")
-    lines.append("Interpolated Bologna passing distributions:")
+    lines.append("Interpolated Distrobution passing distributions:")
     for n_classes in CLASS_COUNTS:
-        dist = interpolated_bologna_passing_distribution(n_classes - 1)
+        dist = interpolated_distrobution_passing_distribution(n_classes - 1)
         lines.append(
             f"  n_classes={n_classes}, n_passing={n_classes - 1}: "
             + ", ".join(f"{x:.6f}" for x in dist)
@@ -1194,30 +1202,30 @@ def save_plots(summary: pd.DataFrame, test_size: int) -> list[Path]:
 
     save_single_metric_plot(
         summary=summary,
-        scale_type=SCALE_BOLOGNA,
+        scale_type=SCALE_DISTROBUTION,
         metric_mean_col="el_acc_mean",
         y_label="Mean exam-level accuracy",
-        title=f"Q{test_size} Bologna EL-Acc vs. Grade-Scale Granularity",
+        title=f"Q{test_size} Distrobution EL-Acc vs. Grade-Scale Granularity",
         output_pdf=paths["bol_acc_pdf"],
         output_png=paths["bol_acc_png"],
     )
 
     save_single_metric_plot(
         summary=summary,
-        scale_type=SCALE_BOLOGNA,
+        scale_type=SCALE_DISTROBUTION,
         metric_mean_col="el_qwk_mean",
         y_label="Mean exam-level QWK",
-        title=f"Q{test_size} Bologna EL-QWK vs. Grade-Scale Granularity",
+        title=f"Q{test_size} Distrobution EL-QWK vs. Grade-Scale Granularity",
         output_pdf=paths["bol_qwk_pdf"],
         output_png=paths["bol_qwk_png"],
     )
 
     save_single_metric_plot(
         summary=summary,
-        scale_type=SCALE_BOLOGNA,
+        scale_type=SCALE_DISTROBUTION,
         metric_mean_col="el_tau_mean",
         y_label=r"Mean exam-level $\tau_b$",
-        title=rf"Q{test_size} Bologna EL-$\tau_b$ vs. Grade-Scale Granularity",
+        title=rf"Q{test_size} Distrobution EL-$\tau_b$ vs. Grade-Scale Granularity",
         output_pdf=paths["bol_tau_pdf"],
         output_png=paths["bol_tau_png"],
     )
@@ -1257,6 +1265,66 @@ def main() -> None:
     print(f"Scale types:           {SCALE_TYPES}")
     print(f"Models:                {len(MODEL_COLUMNS)}")
     print("")
+
+    if not INPUT_PARQUET.exists():
+        if TARGET_TEST_SIZES is None:
+            cached_summaries = sorted(OUTPUT_DIR.glob("figure_4_q*_granularity_data.csv"))
+            target_test_sizes = []
+            for path in cached_summaries:
+                match = re.search(r"figure_4_q(\d+)_granularity_data\.csv$", path.name)
+                if match:
+                    target_test_sizes.append(int(match.group(1)))
+            target_test_sizes = sorted(set(target_test_sizes))
+        else:
+            target_test_sizes = [int(value) for value in TARGET_TEST_SIZES]
+
+        if not target_test_sizes:
+            raise RuntimeError(
+                f"Input parquet not found and no cached summaries exist in {OUTPUT_DIR}."
+            )
+
+        print("Input parquet not found; re-rendering plots from cached summary CSVs.")
+        written_paths: list[Path] = []
+        all_summary: list[pd.DataFrame] = []
+        all_per_exam: list[pd.DataFrame] = []
+
+        for test_size in target_test_sizes:
+            paths = figure_4_paths(test_size)
+            if not paths["summary_csv"].exists():
+                raise FileNotFoundError(
+                    f"Cached summary CSV not found for q{test_size}: {paths['summary_csv']}"
+                )
+
+            summary = pd.read_csv(paths["summary_csv"])
+            summary.to_csv(paths["summary_csv"], index=False, encoding="utf-8")
+            all_summary.append(summary)
+            written_paths.extend(save_plots(summary=summary, test_size=test_size))
+            written_paths.append(paths["summary_csv"])
+
+            if paths["per_exam_csv"].exists():
+                per_exam_df = pd.read_csv(paths["per_exam_csv"])
+                all_per_exam.append(per_exam_df)
+                written_paths.append(paths["per_exam_csv"])
+            if paths["sanity_txt"].exists():
+                written_paths.append(paths["sanity_txt"])
+
+        combined_summary = pd.concat(all_summary, ignore_index=True)
+        combined_summary.to_csv(COMBINED_SUMMARY_CSV, index=False, encoding="utf-8")
+        written_paths.append(COMBINED_SUMMARY_CSV)
+
+        if all_per_exam:
+            combined_per_exam = pd.concat(all_per_exam, ignore_index=True)
+            combined_per_exam.to_csv(COMBINED_PER_EXAM_CSV, index=False, encoding="utf-8")
+            written_paths.append(COMBINED_PER_EXAM_CSV)
+
+        print("")
+        print("Saved files:")
+        for path in written_paths:
+            print(f"  {path}")
+
+        print("")
+        print("DONE")
+        return
 
     raw_df = read_parquet(INPUT_PARQUET)
     validate_input(raw_df)

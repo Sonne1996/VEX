@@ -1,157 +1,251 @@
-# VEX Dataset Card
+---
+license: cc-by-4.0
+pretty_name: VEX
+language:
+  - de
+  - en
+task_categories:
+  - text-classification
+tags:
+  - automatic-short-answer-grading
+  - education
+  - german
+  - student-answers
+  - grading
+  - asag
+---
 
-## Dataset Summary
+# Dataset Card for VEX v1.0 Stable
 
-VEX is an answer-level dataset for short-answer grading in a university-level database systems course. It contains student responses to exam-style questions, question metadata, normalized grades, and a train/test split intended for supervised grading experiments and evaluation.
+## Summary
 
-The public release artifact is:
+VEX v1.0 Stable is a real-world dataset for automated short-answer grading (ASAG), collected from a live university-level database systems course.
 
-```text
-dataset/vex/v1_0_release/v1_0_stable.parquet
-```
+The dataset contains 30,682 student responses from 173 students across 239 question identifiers. Each instance consists of a free-text student answer, an ordinal grade, and associated metadata.
 
-The released dataset contains both human-audited gold labels and model-generated silver labels. The gold subset is used as the benchmark-facing evaluation subset, while the silver-labeled training split supports scalable model training.
+The dataset includes both human-annotated (gold) and model-generated (silver) labels and is designed to support evaluation beyond pointwise score prediction, including decision-level grading behavior.
 
-## Intended Use
+---
 
-The dataset is intended for:
+## Dataset Description
 
-- training and evaluating automatic short-answer grading systems,
-- comparing model behavior on answer-level and exam-level grading tasks,
-- studying grading calibration, ranking stability, and ordinal agreement,
-- reproducible benchmark experiments for the VEX paper and accompanying code.
+Automated Short Answer Grading (ASAG) is commonly formulated as the task of predicting a score for a student response. While existing datasets have enabled significant progress, they are typically constructed in controlled settings and focus primarily on label-level evaluation.
 
-The dataset is not intended for high-stakes grading decisions without human review. Model outputs trained or evaluated on VEX should be treated as research artifacts, not as final grades for real students.
+In real-world educational deployments, grading systems must operate under more complex conditions. Student responses are heterogeneous, question types vary in structure and difficulty, and grading decisions (e.g., pass/fail or grade boundaries) play a central role.
 
-## Dataset Composition
+VEX addresses this gap by providing a dataset collected from a live university course. It reflects authentic student interactions and preserves realistic variability in student responses.
 
-The v1.0 release contains 30,682 answer-level rows from 173 anonymized students and 239 unique questions.
+The dataset supports:
 
-| Statistic | Value |
-| --- | ---: |
-| Students | 173 |
-| Total responses | 30,682 |
-| Unique questions | 239 |
-| Gold-labeled responses | 3,222 |
-| Silver-labeled responses | 27,460 |
-| Average responses per question | 128.38 |
-| Median responses per question | 152.00 |
-| Average responses per student | 177.35 |
-| Median responses per student | 199.00 |
-| Average response length | 29.07 whitespace tokens |
-| Median response length | 15.00 whitespace tokens |
+- label-level evaluation (e.g., score prediction)
+- decision-level evaluation (e.g., pass/fail, ranking, grade mapping)
+- training with a combination of human-annotated (gold) and model-generated (silver) labels
 
-The gold subset contains 3,222 responses from 168 students and 21 questions. It corresponds to the held-out evaluation subset in the release.
+---
 
-## Language Distribution
+## Dataset Structure
 
-Language is estimated from the question text. Each response inherits the detected language of its question. If a question cannot be classified reliably, it is counted as English and reported separately.
+- **Train (silver):** 27,460 responses
+- **Test (gold):** 3,222 responses
+- **Total:** 30,682 responses
 
-| Split | English-question responses | German-question responses | Unknown-question responses counted as English |
-| --- | ---: | ---: | ---: |
-| Full dataset | 1,654 (5.39%) | 29,028 (94.61%) | 155 (0.51%) |
-| Gold subset | 148 (4.59%) | 3,074 (95.41%) | 0 (0.00%) |
+**Split strategy:** Question-level split (Q-split)
 
-Most questions and answers are German. A small English-question portion is retained in the release, and unknown question-language cases are explicitly reported for transparency.
+- No `question_id` appears in both train and test.
+- The same student may appear in both splits via different questions.
 
-## Schema
+This setup evaluates generalization to unseen questions rather than unseen students.
 
-The v1.0 release uses a compact answer-level schema:
+---
 
-| Column | Description |
-| --- | --- |
-| `member_id` | Anonymized student identifier. |
-| `subject_id` | Course or subject identifier. |
-| `answer_id` | Unique answer identifier. |
-| `question_id` | Unique question identifier. |
-| `grading_id` | Unique grading record identifier. |
-| `student_name` | An anonymized readable student alias. |
-| `question` | Plain-text question prompt. |
-| `bloom_level` | Question-level Bloom taxonomy category. |
-| `question_topic` | Topic label for the question. |
-| `answer` | Plain-text student answer. |
-| `grade` | Normalized grade on the dataset's numeric scoring scale. |
-| `label_type` | Label source, either `gold` or `silver`. |
-| `split` | Release split, either `train` or `test`. |
+## Data Fields
 
-## Labels and Splits
+Identifiers
+- `member_id` (string): Pseudonymous student identifier
+- `subject_id`: coarse-grained context identifier
+- `answer_id` (string): Answer identifier
+- `question_id` (string): Question identifier
+- `grading_id` (string): Grading identifier
 
-The release contains two label types:
+Additional identifiers:
+- `student_name` (string): Pseudonymous predefined nickname
 
-- `gold`: human-audited labels used for evaluation.
-- `silver`: teacher-model-generated labels used for training.
+Each instance contains:
 
-The split is aligned with the label source:
+- `question` (string): Prompt shown to the student
+- `answer` (string): Free-text student response
+- `grade` (float): Ordinal score in {0, 0.25, 0.5, 0.75, 1}
 
-| Split | Rows | Label type |
-| --- | ---: | --- |
-| `train` | 27,460 | silver |
-| `test` | 3,222 | gold |
+Question metadata:
 
-This design keeps the benchmark evaluation subset human-audited while allowing the training split to scale beyond the manually labeled data.
+- `bloom_level` (string): Cognitive level
+- `question_topic` (string): Coarse-grained topic label
 
-## Dataset Creation
+Label metadata:
 
-The dataset lineage is:
+- `label_type` (string): `gold` or `silver`
+- `split` (string): `train` or `test`
 
-```text
-v0_1 -> v0_2 -> v0_3 -> v1_0
-```
+---
 
-The main processing stages are:
+## Dataset Statistics
 
-- `v0_1`: first stable export from the institutional SQLite source.
-- `v0_2`: cleaning and restructuring, including plain-text extraction, question metadata integration, grade normalization, and split creation.
-- `v0_3`: silver-label integration and alignment with the downstream modeling schema.
-- `v1_0`: frozen public release used by the model and evaluation scripts.
+- **Total responses:** 30,682
+- **Students:** 173
+- **Topics:** 43 (coarse-grained topic labels)
+- **Question identifiers:** 239
+- **Bloom levels:** 4
 
-The fully raw institutional source database is not redistributed. The public repository documents the stable public processing stages and provides the release artifact used by downstream experiments.
+Topic labels are high-level descriptors and do not represent a strict or fine-grained taxonomy of database topics.
 
-## Preprocessing
+### Grade Distribution
 
-The released dataset applies the following preprocessing steps:
+- 1.0: 54.8%  
+- 0.0: 18.4%  
+- 0.25, 0.5, 0.75: remaining proportion  
 
-- extracts question and answer text from the original structured content,
-- removes non-core raw database fields and transient processing fields,
-- maps audited human annotations to the canonical numeric `grade` column,
-- merges silver labels for the training split,
-- clamps grades to the valid normalized grading range,
-- removes the `gold_is_llm` column from the public v1.0 release,
-- preserves question metadata such as Bloom level and topic.
+The dataset is skewed toward fully correct answers, reflecting a formative course setting.
 
-## Recommended Evaluation
+### Answer Characteristics
 
-For answer-level experiments, use the `test` split with `label_type == "gold"`.
+Student responses vary substantially in length and quality, including:
 
-For exam-level experiments, use the VEX metric pipeline in `vex_metric/`, which constructs virtual exams and reports metrics such as:
+- short phrases
+- multi-sentence explanations
+- empty responses
+- noisy or off-task submissions
+- very long answers
 
-- item-level QWK and MSE,
-- exam-level Kendall's tau-b,
-- exam-level accuracy,
-- exam-level QWK under linear and Bologna-style grading.
+This variability reflects realistic student behavior.
 
-When reporting results, clearly distinguish between answer-level metrics and exam-level metrics, because they measure different properties of model behavior.
+---
 
-## Limitations
+## Data Collection
 
-VEX reflects one institutional course context and one subject area: database systems. Results may not transfer directly to other subjects, grading rubrics, educational levels, or languages.
+The dataset was collected during a semester-long university-level database systems course.
 
-Most responses are German, with a smaller English-question subset. Language identification in the metadata reports is heuristic and based on question text, not a full language-identification model.
+Student responses were submitted through an online assessment system and logged together with associated metadata.
 
-The silver-labeled training split inherits the biases and errors of the teacher model used to generate it. For this reason, gold-label evaluation remains the primary benchmark target.
+Each response is linked to a pseudonymous student identifier, enabling longitudinal analysis while preserving privacy.
 
-Although identifiers are anonymized, the data comes from an educational context. Users must not attempt to re-identify students or use the dataset for student-level profiling.
+The dataset consists of authentic student submissions.
+
+---
+
+## Annotation Process
+
+### Gold Annotation
+
+A subset of responses was annotated by five annotators with domain knowledge.
+
+- Each instance was labeled independently by two annotators  
+- Disagreements were resolved through adjudication  
+- Final result: single consensus label  
+
+Agreement metrics:
+
+- Quadratic Weighted Kappa: 0.79–0.90  
+- Kendall’s τ: 0.69–0.80  
+
+### Silver Annotation
+
+Remaining responses were labeled using a teacher model selected based on performance on the gold subset.
+
+Silver labels are intended for training only.
+
+---
+
+## Label Provenance
+
+The dataset contains two types of labels:
+
+### Gold Labels
+
+- Human-annotated  
+- Double annotation with adjudication  
+- Used for evaluation only  
+- Not used for training  
+
+### Silver Labels
+
+- Generated by a teacher model (Gemini 2.5 Pro)  
+- Zero-shot generation  
+- Used for training only  
+- Should not be interpreted as ground truth  
+
+---
+
+## Data Processing
+
+- Gold and silver labels were merged using unique identifiers
+- Grade values validated to the range [0,1]
+- Column names standardized
+- Technical inconsistencies that prevented proper data linkage were removed
+
+No additional text normalization was applied. Student responses are preserved in their original form.
+
+---
+
+## Language
+
+The dataset is predominantly German (~95%), with a small proportion of English responses (~5%), including occasional mixed-language answers.
+
+---
+
+## Intended Uses
+
+- Training ASAG models
+- Evaluating grading performance
+- Studying decision-level grading behavior
+- Research on combining gold and silver supervision
+
+---
+
+## Out-of-Scope Uses
+
+- Fully automated grading without human oversight
+- High-stakes student evaluation
+- Student profiling or re-identification
+
+---
 
 ## Ethical Considerations
 
-Automatic grading systems can affect educational outcomes if used without oversight. VEX should be used to study and improve grading models, not to replace accountable human assessment in high-stakes settings.
+The dataset is derived from student responses collected during a university course.
 
-Researchers should evaluate calibration, bias, robustness, and failure cases, especially when adapting models trained on VEX to new classrooms, subjects, or languages.
+- All data has been anonymized
+- Students are represented by pseudonymous identifiers
+- No direct personally identifiable information is included
 
-## License
+Students were informed that their responses may be used for research purposes.
 
-The dataset is released under the Creative Commons Attribution 4.0 International License (CC BY 4.0). See [DATA_LICENSE.md](DATA_LICENSE.md) for the full license summary and attribution guidance.
+The dataset reflects a single course and may contain biases related to domain, language, and student population.
+
+Silver labels may introduce systematic biases and should be used with caution.
+
+---
+
+## Limitations
+
+- Single-course dataset (database systems)
+- Limited generalization to other domains
+- Predominantly German language
+- Not balanced across topics or difficulty
+- Grade distribution is skewed toward correct answers
+- Silver labels may contain noise and bias
+
+The dataset evaluates generalization to unseen questions, not unseen students.
+
+---
 
 ## Citation
 
-For research use, cite the associated VEX paper and specify the dataset version used. If a formal citation file or DOI is added later, prefer that citation in downstream work.
+If you use this dataset, please cite:
+```
+@misc{vex2026,
+  title        = {VEX: A Virtual Exam Benchmark for Automated Short Answer Grading},
+  author       = {TBD},
+  year         = {2026},
+  note         = {Dataset and benchmark for longitudinal ASAG evaluation}
+}
+```

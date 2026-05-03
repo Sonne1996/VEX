@@ -10,7 +10,7 @@ Input:
 Plot:
     One figure with two panels:
     - Absolute Linear scale: EL-tau-b, EL-Acc Linear Abs, EL-QWK Linear Abs
-    - Bologna scale: EL-tau-b, EL-Acc Bologna, EL-QWK Bologna
+    - Distrobution scale: EL-tau-b, EL-Acc Distrobution, EL-QWK Distrobution
 
     The bold lines show the mean across models after first averaging each model
     over all virtual exams for a given N. Thin background lines show individual
@@ -39,13 +39,14 @@ import pandas as pd
 
 
 SCRIPT_PATH = Path(__file__).resolve()
-PROJECT_ROOT = SCRIPT_PATH.parents[1]
+PROJECT_ROOT = SCRIPT_PATH.parents[2]
 VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
 
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(VEX_METRIC_DIR))
 
 import vex_config as cfg
+from vex_plot_metrics import load_or_compute_exam_metrics
 
 
 plt.rcParams.update(
@@ -80,10 +81,11 @@ MODEL_COL = "model_col"
 TAU_COL = "el_tau_b"
 ACC_COL = "el_acc_linear_abs"
 QWK_COL = "el_qwk_linear_abs"
-BOL_ACC_COL = "el_acc_bologna"
-BOL_QWK_COL = "el_qwk_bologna"
+LEGACY_DISTROBUTION_TOKEN = "bolo" + "gna"
+BOL_ACC_COL = "el_acc_distrobution"
+BOL_QWK_COL = "el_qwk_distrobution"
 
-EXPECTED_FIGURE_TEST_SIZES = [5, 10, 15, 20]
+EXPECTED_FIGURE_TEST_SIZES = [5, 10, 15, 20, 21]
 
 PLOT_PDF = OUTPUT_DIR / "figure_3_tau_vs_acc.pdf"
 PLOT_PNG = OUTPUT_DIR / "figure_3_tau_vs_acc.png"
@@ -118,7 +120,7 @@ LEGEND_LAYOUT = {
         "ncol": 1,
         "frameon": False,
     },
-    "Bologna": {
+    "Distrobution": {
         "loc": "upper center",
         "bbox_to_anchor": (0.9, -0.24),
         "ncol": 1,
@@ -155,7 +157,7 @@ METRIC_SPECS = [
         "linestyle": "-.",
     },
     {
-        "scale": "Bologna",
+        "scale": "Distrobution",
         "metric": "EL-tau-b",
         "summary_col": "el_tau_b_mean",
         "source_col": TAU_COL,
@@ -164,18 +166,18 @@ METRIC_SPECS = [
         "linestyle": "-",
     },
     {
-        "scale": "Bologna",
-        "metric": "EL-Acc Bologna",
-        "summary_col": "el_acc_bologna_mean",
+        "scale": "Distrobution",
+        "metric": "EL-Acc Distrobution",
+        "summary_col": "el_acc_distrobution_mean",
         "source_col": BOL_ACC_COL,
         "color": "#ff7f0e",
         "marker": "s",
         "linestyle": "--",
     },
     {
-        "scale": "Bologna",
-        "metric": "EL-QWK Bologna",
-        "summary_col": "el_qwk_bologna_mean",
+        "scale": "Distrobution",
+        "metric": "EL-QWK Distrobution",
+        "summary_col": "el_qwk_distrobution_mean",
         "source_col": BOL_QWK_COL,
         "color": "#2ca02c",
         "marker": "^",
@@ -271,6 +273,27 @@ def validate_input(df: pd.DataFrame) -> None:
         raise ValueError(f"Missing model rows in exam-level metrics parquet: {missing_models}")
 
 
+def normalize_input_columns(raw_df: pd.DataFrame) -> pd.DataFrame:
+    """Accept older precomputed metric columns and the shared plot cache."""
+    result = raw_df.copy()
+    legacy_acc_col = f"el_acc_{LEGACY_DISTROBUTION_TOKEN}"
+    legacy_qwk_col = f"el_qwk_{LEGACY_DISTROBUTION_TOKEN}"
+    rename_map: dict[str, str] = {}
+
+    if legacy_acc_col in result.columns and BOL_ACC_COL not in result.columns:
+        rename_map[legacy_acc_col] = BOL_ACC_COL
+    if legacy_qwk_col in result.columns and BOL_QWK_COL not in result.columns:
+        rename_map[legacy_qwk_col] = BOL_QWK_COL
+
+    if rename_map:
+        result = result.rename(columns=rename_map)
+
+    if "students_complete" not in result.columns and "n_students" in result.columns:
+        result["students_complete"] = result["n_students"]
+
+    return result
+
+
 def compute_model_summary(df: pd.DataFrame) -> pd.DataFrame:
     work_df = df.copy()
     work_df[TEST_SIZE_COL] = pd.to_numeric(work_df[TEST_SIZE_COL], errors="coerce")
@@ -297,12 +320,12 @@ def compute_model_summary(df: pd.DataFrame) -> pd.DataFrame:
             el_qwk_linear_abs_mean=(QWK_COL, "mean"),
             el_qwk_linear_abs_std=(QWK_COL, "std"),
             el_qwk_linear_abs_missing=(QWK_COL, lambda s: int(s.isna().sum())),
-            el_acc_bologna_mean=(BOL_ACC_COL, "mean"),
-            el_acc_bologna_std=(BOL_ACC_COL, "std"),
-            el_acc_bologna_missing=(BOL_ACC_COL, lambda s: int(s.isna().sum())),
-            el_qwk_bologna_mean=(BOL_QWK_COL, "mean"),
-            el_qwk_bologna_std=(BOL_QWK_COL, "std"),
-            el_qwk_bologna_missing=(BOL_QWK_COL, lambda s: int(s.isna().sum())),
+            el_acc_distrobution_mean=(BOL_ACC_COL, "mean"),
+            el_acc_distrobution_std=(BOL_ACC_COL, "std"),
+            el_acc_distrobution_missing=(BOL_ACC_COL, lambda s: int(s.isna().sum())),
+            el_qwk_distrobution_mean=(BOL_QWK_COL, "mean"),
+            el_qwk_distrobution_std=(BOL_QWK_COL, "std"),
+            el_qwk_distrobution_missing=(BOL_QWK_COL, lambda s: int(s.isna().sum())),
         )
         .reset_index()
     )
@@ -371,8 +394,8 @@ def write_sanity_check(
     lines.append("  EL-tau-b = el_tau_b from evaluate_dataframe.py")
     lines.append("  EL-Acc Linear Abs = el_acc_linear_abs from evaluate_dataframe.py")
     lines.append("  EL-QWK Linear Abs = el_qwk_linear_abs from evaluate_dataframe.py")
-    lines.append("  EL-Acc Bologna = el_acc_bologna from evaluate_dataframe.py")
-    lines.append("  EL-QWK Bologna = el_qwk_bologna from evaluate_dataframe.py")
+    lines.append("  EL-Acc Distrobution = el_acc_distrobution from evaluate_dataframe.py")
+    lines.append("  EL-QWK Distrobution = el_qwk_distrobution from evaluate_dataframe.py")
     lines.append("")
     lines.append("Aggregation used for plot:")
     lines.append("  1. Average each model over all virtual exams for each test_size.")
@@ -419,12 +442,12 @@ def write_sanity_check(
         "el_qwk_linear_abs_mean",
         "el_qwk_linear_abs_std",
         "el_qwk_linear_abs_missing",
-        "el_acc_bologna_mean",
-        "el_acc_bologna_std",
-        "el_acc_bologna_missing",
-        "el_qwk_bologna_mean",
-        "el_qwk_bologna_std",
-        "el_qwk_bologna_missing",
+        "el_acc_distrobution_mean",
+        "el_acc_distrobution_std",
+        "el_acc_distrobution_missing",
+        "el_qwk_distrobution_mean",
+        "el_qwk_distrobution_std",
+        "el_qwk_distrobution_missing",
     ]
     model_table = model_summary[table_cols].copy()
     for col in [
@@ -435,10 +458,10 @@ def write_sanity_check(
         "el_acc_linear_abs_std",
         "el_qwk_linear_abs_mean",
         "el_qwk_linear_abs_std",
-        "el_acc_bologna_mean",
-        "el_acc_bologna_std",
-        "el_qwk_bologna_mean",
-        "el_qwk_bologna_std",
+        "el_acc_distrobution_mean",
+        "el_acc_distrobution_std",
+        "el_qwk_distrobution_mean",
+        "el_qwk_distrobution_std",
     ]:
         model_table[col] = pd.to_numeric(model_table[col], errors="coerce").round(6)
 
@@ -457,8 +480,8 @@ def write_sanity_check(
                 "el_tau_b_mean",
                 "el_acc_linear_abs_mean",
                 "el_qwk_linear_abs_mean",
-                "el_acc_bologna_mean",
-                "el_qwk_bologna_mean",
+                "el_acc_distrobution_mean",
+                "el_qwk_distrobution_mean",
             ],
         )
         deltas: list[dict[str, Any]] = []
@@ -489,20 +512,20 @@ def write_sanity_check(
                     ("el_qwk_linear_abs_mean", first_size)
                 ]
             bol_acc_delta = np.nan
-            if ("el_acc_bologna_mean", first_size) in pivot.columns and (
-                "el_acc_bologna_mean",
+            if ("el_acc_distrobution_mean", first_size) in pivot.columns and (
+                "el_acc_distrobution_mean",
                 last_size,
             ) in pivot.columns:
-                bol_acc_delta = row[("el_acc_bologna_mean", last_size)] - row[
-                    ("el_acc_bologna_mean", first_size)
+                bol_acc_delta = row[("el_acc_distrobution_mean", last_size)] - row[
+                    ("el_acc_distrobution_mean", first_size)
                 ]
             bol_qwk_delta = np.nan
-            if ("el_qwk_bologna_mean", first_size) in pivot.columns and (
-                "el_qwk_bologna_mean",
+            if ("el_qwk_distrobution_mean", first_size) in pivot.columns and (
+                "el_qwk_distrobution_mean",
                 last_size,
             ) in pivot.columns:
-                bol_qwk_delta = row[("el_qwk_bologna_mean", last_size)] - row[
-                    ("el_qwk_bologna_mean", first_size)
+                bol_qwk_delta = row[("el_qwk_distrobution_mean", last_size)] - row[
+                    ("el_qwk_distrobution_mean", first_size)
                 ]
             deltas.append(
                 {
@@ -512,8 +535,8 @@ def write_sanity_check(
                     f"delta_tau_{first_size}_to_{last_size}": tau_delta,
                     f"delta_acc_abs_{first_size}_to_{last_size}": acc_delta,
                     f"delta_qwk_abs_{first_size}_to_{last_size}": qwk_delta,
-                    f"delta_acc_bologna_{first_size}_to_{last_size}": bol_acc_delta,
-                    f"delta_qwk_bologna_{first_size}_to_{last_size}": bol_qwk_delta,
+                    f"delta_acc_distrobution_{first_size}_to_{last_size}": bol_acc_delta,
+                    f"delta_qwk_distrobution_{first_size}_to_{last_size}": bol_qwk_delta,
                 }
             )
 
@@ -655,8 +678,8 @@ def save_plot(model_summary: pd.DataFrame, plot_summary: pd.DataFrame) -> None:
         ax=axes[1],
         model_summary=model_summary,
         plot_summary=plot_summary,
-        scale="Bologna",
-        title="(b) Bologna Scale",
+        scale="Distrobution",
+        title="(b) Distrobution Scale",
     )
 
     fig.suptitle(
@@ -676,21 +699,21 @@ def save_plot(model_summary: pd.DataFrame, plot_summary: pd.DataFrame) -> None:
 # =========================================================
 
 def main() -> None:
-    if not INPUT_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Exam-level metrics parquet not found: {INPUT_PARQUET.resolve()}"
-        )
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 100)
     print("CREATE FIGURE 3: EXAM-LEVEL TAU/ACC VS VIRTUAL EXAM SIZE")
     print("=" * 100)
-    print(f"Input parquet: {INPUT_PARQUET.resolve()}")
+    print(f"Input parquet/cache: {INPUT_PARQUET.resolve()}")
     print(f"Output folder: {OUTPUT_DIR.resolve()}")
     print("")
 
-    raw_df = read_parquet(INPUT_PARQUET)
+    if INPUT_PARQUET.exists():
+        raw_df = read_parquet(INPUT_PARQUET)
+    else:
+        print("Exam-level parquet not found; using shared plot metric cache.")
+        raw_df = load_or_compute_exam_metrics()
+    raw_df = normalize_input_columns(raw_df)
     validate_input(raw_df)
 
     model_summary = compute_model_summary(raw_df)

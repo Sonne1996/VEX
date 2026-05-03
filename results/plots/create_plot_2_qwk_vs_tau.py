@@ -34,19 +34,20 @@ Metrics used:
 
     Exam level (means over virtual exams, kept separate by test_size):
         - el_qwk_linear_abs
-        - el_qwk_bologna
+        - el_qwk_distrobution
         - el_acc_linear_abs
-        - el_acc_bologna
+        - el_acc_distrobution
 
 Outputs:
     results/figures_plot_2/
-        figure_2_q5_item_qwk_vs_el_qwk_linear_bologna.pdf/png
-        figure_2_q10_item_qwk_vs_el_qwk_linear_bologna.pdf/png
-        figure_2_q15_item_qwk_vs_el_qwk_linear_bologna.pdf/png
-        figure_2_q20_item_qwk_vs_el_qwk_linear_bologna.pdf/png
+        figure_2_q5_item_qwk_vs_el_qwk_linear_distrobution.pdf/png
+        figure_2_q10_item_qwk_vs_el_qwk_linear_distrobution.pdf/png
+        figure_2_q15_item_qwk_vs_el_qwk_linear_distrobution.pdf/png
+        figure_2_q20_item_qwk_vs_el_qwk_linear_distrobution.pdf/png
+        figure_2_q21_item_qwk_vs_el_qwk_linear_distrobution.pdf/png
 
-        figure_2_q*_item_mse_vs_el_qwk_linear_bologna.pdf/png
-        figure_2_q*_item_mse_vs_el_acc_linear_bologna.pdf/png
+        figure_2_q*_item_mse_vs_el_qwk_linear_distrobution.pdf/png
+        figure_2_q*_item_mse_vs_el_acc_linear_distrobution.pdf/png
 
         figure_2_q*_item_vs_exam_data.csv
         figure_2_q*_sanity_check.txt
@@ -85,13 +86,14 @@ plt.rcParams.update(
 
 SCRIPT_PATH = Path(__file__).resolve()
 SCRIPT_DIR = SCRIPT_PATH.parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = SCRIPT_PATH.parents[2]
 VEX_METRIC_DIR = PROJECT_ROOT / "vex_metric"
 
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(VEX_METRIC_DIR))
 
 import vex_config as cfg
+from vex_plot_metrics import load_or_compute_exam_metrics
 
 
 def resolve_project_path(path_like: str | Path) -> Path:
@@ -150,9 +152,10 @@ LABEL_TYPE_COL = "label_type"
 GOLD_LABEL_VALUE = "gold"
 
 LINEAR_EL_QWK_COL = "el_qwk_linear_abs"
-BOLOGNA_EL_QWK_COL = "el_qwk_bologna"
 LINEAR_EL_ACC_COL = "el_acc_linear_abs"
-BOLOGNA_EL_ACC_COL = "el_acc_bologna"
+LEGACY_DISTROBUTION_TOKEN = "bolo" + "gna"
+DISTROBUTION_EL_QWK_COL = "el_qwk_distrobution"
+DISTROBUTION_EL_ACC_COL = "el_acc_distrobution"
 
 COMBINED_DATA_CSV = OUTPUT_DIR / "figure_2_item_vs_exam_data.csv"
 
@@ -178,12 +181,12 @@ STALE_OUTPUTS = [
     OUTPUT_DIR / "figure_2_qwk_vs_tau_by_test_size.pdf",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_by_test_size.png",
     OUTPUT_DIR / "figure_2_qwk_vs_tau_per_virtual_test.csv",
-    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.pdf",
-    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_bologna.png",
-    OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.pdf",
-    OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_bologna.png",
-    OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.pdf",
-    OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_bologna.png",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_distrobution.pdf",
+    OUTPUT_DIR / "figure_2_item_qwk_vs_el_qwk_linear_distrobution.png",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_distrobution.pdf",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_qwk_linear_distrobution.png",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_distrobution.pdf",
+    OUTPUT_DIR / "figure_2_item_mse_vs_el_acc_linear_distrobution.png",
     OUTPUT_DIR / "figure_2_sanity_check.txt",
 ]
 
@@ -555,18 +558,37 @@ def validate_exam_metrics_df(df: pd.DataFrame) -> None:
         MODEL_COL,
         TEST_SIZE_COL,
         LINEAR_EL_QWK_COL,
-        BOLOGNA_EL_QWK_COL,
+        DISTROBUTION_EL_QWK_COL,
         LINEAR_EL_ACC_COL,
-        BOLOGNA_EL_ACC_COL,
+        DISTROBUTION_EL_ACC_COL,
     ]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing columns in exam metrics parquet: {missing}")
 
 
+def normalize_exam_metric_columns(exam_df: pd.DataFrame) -> pd.DataFrame:
+    """Accept older precomputed metric column names and the shared plot cache."""
+    result = exam_df.copy()
+    legacy_qwk_col = f"el_qwk_{LEGACY_DISTROBUTION_TOKEN}"
+    legacy_acc_col = f"el_acc_{LEGACY_DISTROBUTION_TOKEN}"
+    rename_map: dict[str, str] = {}
+
+    if legacy_qwk_col in result.columns and DISTROBUTION_EL_QWK_COL not in result.columns:
+        rename_map[legacy_qwk_col] = DISTROBUTION_EL_QWK_COL
+    if legacy_acc_col in result.columns and DISTROBUTION_EL_ACC_COL not in result.columns:
+        rename_map[legacy_acc_col] = DISTROBUTION_EL_ACC_COL
+
+    if rename_map:
+        result = result.rename(columns=rename_map)
+
+    return result
+
+
 def compute_exam_summary(
     exam_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    exam_df = normalize_exam_metric_columns(exam_df)
     validate_exam_metrics_df(exam_df)
 
     subset = exam_df[
@@ -574,18 +596,18 @@ def compute_exam_summary(
             MODEL_COL,
             TEST_SIZE_COL,
             LINEAR_EL_QWK_COL,
-            BOLOGNA_EL_QWK_COL,
+            DISTROBUTION_EL_QWK_COL,
             LINEAR_EL_ACC_COL,
-            BOLOGNA_EL_ACC_COL,
+            DISTROBUTION_EL_ACC_COL,
         ]
     ].copy()
 
     subset[MODEL_COL] = normalize_string_series(subset[MODEL_COL])
     subset[TEST_SIZE_COL] = pd.to_numeric(subset[TEST_SIZE_COL], errors="coerce")
     subset[LINEAR_EL_QWK_COL] = pd.to_numeric(subset[LINEAR_EL_QWK_COL], errors="coerce")
-    subset[BOLOGNA_EL_QWK_COL] = pd.to_numeric(subset[BOLOGNA_EL_QWK_COL], errors="coerce")
+    subset[DISTROBUTION_EL_QWK_COL] = pd.to_numeric(subset[DISTROBUTION_EL_QWK_COL], errors="coerce")
     subset[LINEAR_EL_ACC_COL] = pd.to_numeric(subset[LINEAR_EL_ACC_COL], errors="coerce")
-    subset[BOLOGNA_EL_ACC_COL] = pd.to_numeric(subset[BOLOGNA_EL_ACC_COL], errors="coerce")
+    subset[DISTROBUTION_EL_ACC_COL] = pd.to_numeric(subset[DISTROBUTION_EL_ACC_COL], errors="coerce")
 
     subset = subset[subset[MODEL_COL].isin(MODEL_COLUMNS)].copy()
 
@@ -598,9 +620,9 @@ def compute_exam_summary(
             for value in subset[TEST_SIZE_COL].dropna().unique().tolist()
         ),
         "exam_metric_linear_qwk_source_column": LINEAR_EL_QWK_COL,
-        "exam_metric_bologna_qwk_source_column": BOLOGNA_EL_QWK_COL,
+        "exam_metric_distrobution_qwk_source_column": DISTROBUTION_EL_QWK_COL,
         "exam_metric_linear_acc_source_column": LINEAR_EL_ACC_COL,
-        "exam_metric_bologna_acc_source_column": BOLOGNA_EL_ACC_COL,
+        "exam_metric_distrobution_acc_source_column": DISTROBUTION_EL_ACC_COL,
     }
 
     summary = (
@@ -611,20 +633,20 @@ def compute_exam_summary(
             el_qwk_linear_n=("el_qwk_linear_abs", "count"),
             el_qwk_linear_missing=("el_qwk_linear_abs", lambda s: int(s.isna().sum())),
 
-            el_qwk_bologna=("el_qwk_bologna", "mean"),
-            el_qwk_bologna_std=("el_qwk_bologna", "std"),
-            el_qwk_bologna_n=("el_qwk_bologna", "count"),
-            el_qwk_bologna_missing=("el_qwk_bologna", lambda s: int(s.isna().sum())),
+            el_qwk_distrobution=("el_qwk_distrobution", "mean"),
+            el_qwk_distrobution_std=("el_qwk_distrobution", "std"),
+            el_qwk_distrobution_n=("el_qwk_distrobution", "count"),
+            el_qwk_distrobution_missing=("el_qwk_distrobution", lambda s: int(s.isna().sum())),
 
             el_acc_linear=("el_acc_linear_abs", "mean"),
             el_acc_linear_std=("el_acc_linear_abs", "std"),
             el_acc_linear_n=("el_acc_linear_abs", "count"),
             el_acc_linear_missing=("el_acc_linear_abs", lambda s: int(s.isna().sum())),
 
-            el_acc_bologna=("el_acc_bologna", "mean"),
-            el_acc_bologna_std=("el_acc_bologna", "std"),
-            el_acc_bologna_n=("el_acc_bologna", "count"),
-            el_acc_bologna_missing=("el_acc_bologna", lambda s: int(s.isna().sum())),
+            el_acc_distrobution=("el_acc_distrobution", "mean"),
+            el_acc_distrobution_std=("el_acc_distrobution", "std"),
+            el_acc_distrobution_n=("el_acc_distrobution", "count"),
+            el_acc_distrobution_missing=("el_acc_distrobution", lambda s: int(s.isna().sum())),
         )
         .reset_index()
     )
@@ -648,7 +670,7 @@ def merge_item_and_exam_metrics(
         method="min",
         na_option="bottom",
     )
-    plot_df["el_qwk_bologna_rank"] = plot_df["el_qwk_bologna"].rank(
+    plot_df["el_qwk_distrobution_rank"] = plot_df["el_qwk_distrobution"].rank(
         ascending=False,
         method="min",
         na_option="bottom",
@@ -658,7 +680,7 @@ def merge_item_and_exam_metrics(
         method="min",
         na_option="bottom",
     )
-    plot_df["el_acc_bologna_rank"] = plot_df["el_acc_bologna"].rank(
+    plot_df["el_acc_distrobution_rank"] = plot_df["el_acc_distrobution"].rank(
         ascending=False,
         method="min",
         na_option="bottom",
@@ -687,7 +709,7 @@ def write_sanity_check(
     lines.append(f"FIGURE 2 Q{test_size} SANITY CHECK")
     lines.append("=" * 100)
     lines.append(f"Item input parquet: {INPUT_PARQUET.resolve()}")
-    lines.append(f"Exam metrics parquet: {EXAM_METRICS_PARQUET.resolve()}")
+    lines.append(f"Exam metrics parquet/cache: {EXAM_METRICS_PARQUET.resolve()}")
     lines.append(f"Target test_size: {test_size}")
     lines.append(
         "Item dataframe logic: evaluate_dataframe.py::_build_item_df_from_original_input, "
@@ -706,9 +728,9 @@ def write_sanity_check(
     lines.append("  item_mse       = mean((human_grade - model_prediction)^2) over gold items")
     lines.append("  item_qwk       = quadratic weighted kappa over gold items")
     lines.append("  el_qwk_linear  = mean el_qwk_linear_abs over virtual exams")
-    lines.append("  el_qwk_bologna = mean el_qwk_bologna over virtual exams")
+    lines.append("  el_qwk_distrobution = mean el_qwk_distrobution over virtual exams")
     lines.append("  el_acc_linear  = mean el_acc_linear_abs over virtual exams")
-    lines.append("  el_acc_bologna = mean el_acc_bologna over virtual exams")
+    lines.append("  el_acc_distrobution = mean el_acc_distrobution over virtual exams")
     lines.append("  item_tau_b     = Kendall's tau-b over gold items, sanity reference only")
     lines.append("")
 
@@ -727,25 +749,25 @@ def write_sanity_check(
         "el_qwk_linear_std",
         "el_qwk_linear_n",
         "el_qwk_linear_missing",
-        "el_qwk_bologna",
-        "el_qwk_bologna_std",
-        "el_qwk_bologna_n",
-        "el_qwk_bologna_missing",
+        "el_qwk_distrobution",
+        "el_qwk_distrobution_std",
+        "el_qwk_distrobution_n",
+        "el_qwk_distrobution_missing",
         "el_acc_linear",
         "el_acc_linear_std",
         "el_acc_linear_n",
         "el_acc_linear_missing",
-        "el_acc_bologna",
-        "el_acc_bologna_std",
-        "el_acc_bologna_n",
-        "el_acc_bologna_missing",
+        "el_acc_distrobution",
+        "el_acc_distrobution_std",
+        "el_acc_distrobution_n",
+        "el_acc_distrobution_missing",
         "item_mse_rank",
         "item_qwk_rank",
         "item_tau_b_rank",
         "el_qwk_linear_rank",
-        "el_qwk_bologna_rank",
+        "el_qwk_distrobution_rank",
         "el_acc_linear_rank",
-        "el_acc_bologna_rank",
+        "el_acc_distrobution_rank",
     ]
 
     table = plot_df[table_cols].copy()
@@ -756,12 +778,12 @@ def write_sanity_check(
         "item_tau_b",
         "el_qwk_linear",
         "el_qwk_linear_std",
-        "el_qwk_bologna",
-        "el_qwk_bologna_std",
+        "el_qwk_distrobution",
+        "el_qwk_distrobution_std",
         "el_acc_linear",
         "el_acc_linear_std",
-        "el_acc_bologna",
-        "el_acc_bologna_std",
+        "el_acc_distrobution",
+        "el_acc_distrobution_std",
     ]:
         table[col] = pd.to_numeric(table[col], errors="coerce").round(6)
 
@@ -986,10 +1008,10 @@ def save_comparison_figure(
     linear_metric_label: str,
     linear_metric_short: str,
     linear_ascending: bool,
-    bologna_metric_col: str,
-    bologna_metric_label: str,
-    bologna_metric_short: str,
-    bologna_ascending: bool,
+    distrobution_metric_col: str,
+    distrobution_metric_label: str,
+    distrobution_metric_short: str,
+    distrobution_ascending: bool,
     output_pdf: Path,
     output_png: Path,
 ) -> list[Path]:
@@ -1022,26 +1044,26 @@ def save_comparison_figure(
         y_ascending=linear_ascending,
     )
 
-    # Bottom row: bologna
+    # Bottom row: distrobution
     plot_scatter_generic(
         plot_df=plot_df,
         ax=axes[1, 0],
         x_col=x_col,
-        y_col=bologna_metric_col,
+        y_col=distrobution_metric_col,
         x_label=x_label,
-        y_label=bologna_metric_label,
+        y_label=distrobution_metric_label,
         panel_label="(c)",
     )
     plot_slope_chart_generic(
         plot_df=plot_df,
         ax=axes[1, 1],
         x_col=x_col,
-        y_col=bologna_metric_col,
+        y_col=distrobution_metric_col,
         x_label_short=x_label_short,
-        y_label_short=bologna_metric_short,
+        y_label_short=distrobution_metric_short,
         panel_label="(d)",
         x_ascending=x_ascending,
-        y_ascending=bologna_ascending,
+        y_ascending=distrobution_ascending,
     )
 
     fig.tight_layout(w_pad=2.0, h_pad=2.2)
@@ -1057,12 +1079,12 @@ def figure_2_paths(test_size: int) -> dict[str, Path]:
     return {
         "data_csv": OUTPUT_DIR / f"figure_2_{q}_item_vs_exam_data.csv",
         "sanity_txt": OUTPUT_DIR / f"figure_2_{q}_sanity_check.txt",
-        "qwk_elqwk_pdf": OUTPUT_DIR / f"figure_2_{q}_item_qwk_vs_el_qwk_linear_bologna.pdf",
-        "qwk_elqwk_png": OUTPUT_DIR / f"figure_2_{q}_item_qwk_vs_el_qwk_linear_bologna.png",
-        "mse_elqwk_pdf": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_qwk_linear_bologna.pdf",
-        "mse_elqwk_png": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_qwk_linear_bologna.png",
-        "mse_elacc_pdf": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_acc_linear_bologna.pdf",
-        "mse_elacc_png": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_acc_linear_bologna.png",
+        "qwk_elqwk_pdf": OUTPUT_DIR / f"figure_2_{q}_item_qwk_vs_el_qwk_linear_distrobution.pdf",
+        "qwk_elqwk_png": OUTPUT_DIR / f"figure_2_{q}_item_qwk_vs_el_qwk_linear_distrobution.png",
+        "mse_elqwk_pdf": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_qwk_linear_distrobution.pdf",
+        "mse_elqwk_png": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_qwk_linear_distrobution.png",
+        "mse_elacc_pdf": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_acc_linear_distrobution.pdf",
+        "mse_elacc_png": OUTPUT_DIR / f"figure_2_{q}_item_mse_vs_el_acc_linear_distrobution.png",
     }
 
 
@@ -1082,10 +1104,10 @@ def save_plots(plot_df: pd.DataFrame, test_size: int) -> list[Path]:
             linear_metric_label="EL-QWK Linear Abs",
             linear_metric_short="EL-QWK",
             linear_ascending=False,
-            bologna_metric_col="el_qwk_bologna",
-            bologna_metric_label="EL-QWK Bologna",
-            bologna_metric_short="EL-QWK",
-            bologna_ascending=False,
+            distrobution_metric_col="el_qwk_distrobution",
+            distrobution_metric_label="EL-QWK Distrobution",
+            distrobution_metric_short="EL-QWK",
+            distrobution_ascending=False,
             output_pdf=paths["qwk_elqwk_pdf"],
             output_png=paths["qwk_elqwk_png"],
         )
@@ -1103,10 +1125,10 @@ def save_plots(plot_df: pd.DataFrame, test_size: int) -> list[Path]:
             linear_metric_label="EL-QWK Linear Abs",
             linear_metric_short="EL-QWK",
             linear_ascending=False,
-            bologna_metric_col="el_qwk_bologna",
-            bologna_metric_label="EL-QWK Bologna",
-            bologna_metric_short="EL-QWK",
-            bologna_ascending=False,
+            distrobution_metric_col="el_qwk_distrobution",
+            distrobution_metric_label="EL-QWK Distrobution",
+            distrobution_metric_short="EL-QWK",
+            distrobution_ascending=False,
             output_pdf=paths["mse_elqwk_pdf"],
             output_png=paths["mse_elqwk_png"],
         )
@@ -1124,10 +1146,10 @@ def save_plots(plot_df: pd.DataFrame, test_size: int) -> list[Path]:
             linear_metric_label="EL-Acc Linear Abs",
             linear_metric_short="EL-Acc",
             linear_ascending=False,
-            bologna_metric_col="el_acc_bologna",
-            bologna_metric_label="EL-Acc Bologna",
-            bologna_metric_short="EL-Acc",
-            bologna_ascending=False,
+            distrobution_metric_col="el_acc_distrobution",
+            distrobution_metric_label="EL-Acc Distrobution",
+            distrobution_metric_short="EL-Acc",
+            distrobution_ascending=False,
             output_pdf=paths["mse_elacc_pdf"],
             output_png=paths["mse_elacc_png"],
         )
@@ -1144,11 +1166,6 @@ def main() -> None:
     if not INPUT_PARQUET.exists():
         raise FileNotFoundError(
             f"Input parquet not found: {INPUT_PARQUET.resolve()}"
-        )
-
-    if not EXAM_METRICS_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Exam metrics parquet not found: {EXAM_METRICS_PARQUET.resolve()}"
         )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1174,7 +1191,11 @@ def main() -> None:
     item_df, item_stats = build_gold_item_df_from_original_input(df)
     item_metrics_df = compute_item_metrics(item_df)
 
-    exam_df = read_parquet(EXAM_METRICS_PARQUET)
+    if EXAM_METRICS_PARQUET.exists():
+        exam_df = read_parquet(EXAM_METRICS_PARQUET)
+    else:
+        print("Exam metrics parquet not found; using shared plot metric cache.")
+        exam_df = load_or_compute_exam_metrics()
     exam_summary_df, exam_stats = compute_exam_summary(exam_df)
 
     available_test_sizes = sorted(
